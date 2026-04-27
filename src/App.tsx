@@ -2,6 +2,7 @@ import { useEffect, useState, useRef } from "react";
 import "./App.css";
 import Button from "./components/Button";
 import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 
 const RTC_CONFIG: RTCConfiguration = {
   iceServers: [],
@@ -20,7 +21,13 @@ function App() {
   const [signaling_server, set_server] = useState("http://localhost:6767");
 
   useEffect(() => {
+    invoke("capture_sound");
+
+    const unlisten = listen<number[]>("audio-data", (e) => {
+      console.log(e.payload);
+    });
     return () => {
+      unlisten.then((fn) => fn());
       pcRef.current?.close();
       pcRef.current = null;
     };
