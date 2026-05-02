@@ -1,7 +1,31 @@
-# Tauri + React + Typescript
+# ShareYourSounds
 
-This template should help get you started developing with Tauri, React and Typescript in Vite.
+버즈 하나로 2~3개 디바이스의 소리를 동시에 듣는 데스크톱 앱.
 
-## Recommended IDE Setup
+## 왜 만들었나
 
-- [VS Code](https://code.visualstudio.com/) + [Tauri](https://marketplace.visualstudio.com/items?itemName=tauri-apps.tauri-vscode) + [rust-analyzer](https://marketplace.visualstudio.com/items?itemName=rust-lang.rust-analyzer)
+블루투스 이어폰은 한 기기에만 연결된다. 노트북으로 음악 들으면서 데스크톱 게임 소리도 같이 듣고 싶을 때, 이 앱이 각 기기의 시스템 오디오를 캡처해서 WebRTC로 하나의 수신 기기에 모아준다.
+
+## 구조
+
+```
+디바이스A(호스트) → 시스템 오디오 캡처 → WebRTC → 수신 디바이스(버즈 연결)
+디바이스B(호스트) → 시스템 오디오 캡처 → WebRTC ↗
+```
+
+- **호스트**: 시스템 소리를 캡처해서 송출하는 기기
+- **수신자**: 여러 호스트의 소리를 받아서 버즈로 재생하는 기기
+
+## 기술 스택
+
+- **Frontend**: React + TypeScript (Vite)
+- **Backend**: Rust (Tauri 2)
+- **오디오 캡처**: PulseAudio (Linux) / cpal (Windows)
+- **스트리밍**: WebRTC (webrtc-rs)
+
+## 현재 상태
+
+- [x] 시스템 오디오 캡처 (Linux, Windows)
+- [x] 호스트/클라이언트 UI
+- [ ] WebRTC 오디오 스트리밍
+- [ ] 다중 호스트 동시 수신
