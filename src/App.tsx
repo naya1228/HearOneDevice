@@ -46,6 +46,7 @@ function App() {
     try {
       const url = await invoke<string>("open_room");
       setReceiverUrl(url);
+      await invoke("capture_sound");
     } catch (e) {
       setError(String(e));
       setStatus("failed");

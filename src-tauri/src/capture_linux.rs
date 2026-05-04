@@ -1,11 +1,12 @@
+use bytes::Bytes;
 use libpulse_binding::sample::{Format, Spec};
 use libpulse_binding::stream::Direction;
 use libpulse_simple_binding::Simple as LinuxAudioCapture;
 use std::sync::{Arc, Mutex};
-use tauri::{Emitter, State};
+use tauri::State;
 
+use crate::channel::AudioBroadcast;
 use crate::AudioConfig;
-use std::string::String;
 
 pub struct CaptureStream(pub Mutex<Option<Arc<LinuxAudioCapture>>>);
 
@@ -14,10 +15,9 @@ const CHANNELS: u16 = 2;
 
 #[tauri::command]
 pub fn capture_sound(
-    app: tauri::AppHandle,
     state: State<'_, CaptureStream>,
+    broadcast: State<'_, AudioBroadcast>,
 ) -> Result<AudioConfig, String> {
-    //.monitor로 끝나는 입력장치 찾기
     let output = std::process::Command::new("pactl")
         .args(["get-default-sink"])
         .output()
@@ -27,7 +27,7 @@ pub fn capture_sound(
         .trim()
         .to_string();
     let monitor = format!("{sink}.monitor");
-    println!("연결된 모니터 소스: {monitor}");
+    println!("모니터 소스: {monitor}");
 
     let spec = Spec {
         format: Format::FLOAT32NE,
@@ -35,22 +35,22 @@ pub fn capture_sound(
         rate: SAMPLE_RATE,
     };
 
-    //입력장치 바인딩
     let stream = Arc::new(
         LinuxAudioCapture::new(
-            None,                   // server
-            "Heare-one-device",     // name
-            Direction::Record,      // dir
-            Some(monitor.as_str()), // dev (monitor source)
-            "capture",              // stream_name
-            &spec,                  // sample spec
-            None,                   // channel map
-            None,                   // buffer attr
+            None,
+            "ShareYourSounds",
+            Direction::Record,
+            Some(monitor.as_str()),
+            "capture",
+            &spec,
+            None,
+            None,
         )
         .map_err(|e| e.to_string().unwrap_or("PulseAudio error".into()))?,
     );
 
     let stream_clone = stream.clone();
+    let tx = broadcast.0.clone();
     std::thread::spawn(move || {
         let frame_bytes = (CHANNELS as usize) * std::mem::size_of::<f32>();
         let mut buf = vec![0u8; frame_bytes * 1024];
@@ -59,11 +59,10 @@ pub fn capture_sound(
             if stream_clone.read(&mut buf).is_err() {
                 break;
             }
-            let samples: Vec<f32> = buf
-                .chunks_exact(4)
-                .map(|b| f32::from_le_bytes(b.try_into().unwrap()))
-                .collect();
-            let _ = app.emit("audio-data", samples);
+            // 수신자가 없으면 전송 스킵
+            if tx.receiver_count() > 0 {
+                let _ = tx.send(Bytes::copy_from_slice(&buf));
+            }
         }
     });
 

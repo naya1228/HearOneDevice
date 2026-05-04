@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ShareYourSounds - Receiver</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: { extend: { colors: { accent: '#FD6000' } } }
+    }
+  </script>
+</head>
+<body class="bg-[#1F1F1E] min-h-screen flex flex-col items-center p-3">
+
+  <img src="/sharing.svg" class="rounded-md w-32 mt-4" />
+  <span class="text-white text-4xl font-bold m-2">ShareYourSounds</span>
+  <p class="text-gray-500 mb-8">Receiver Mode</p>
+
+  <div id="idle" class="flex flex-col items-center gap-4">
+    <p class="text-gray-400 text-sm text-center mb-2">
+      호스트가 방을 열었다면 연결 버튼을 누르세요.
+    </p>
+    <button onclick="connect()"
+      class="bg-[#FD6000] text-white rounded-md p-3 text-lg">
+      Connect &amp; Listen
+    </button>
+  </div>
+
+  <div id="listening" class="hidden flex-col items-center gap-4">
+    <div class="relative flex items-center justify-center w-24 h-24">
+      <span class="absolute inline-flex h-full w-full rounded-full bg-[#FD6000] opacity-20 animate-ping"></span>
+      <span class="relative inline-flex rounded-full h-16 w-16 bg-[#FD6000] opacity-80 items-center justify-center">
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-8 h-8 text-white" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3A4.5 4.5 0 0 0 14 7.97v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77 0-4.28-2.99-7.86-7-8.77z"/>
+        </svg>
+      </span>
+    </div>
+    <p class="text-[#FD6000] text-lg font-semibold">Listening...</p>
+    <button onclick="disconnect()" class="text-gray-500 text-sm mt-4 underline">
+      Disconnect
+    </button>
+  </div>
+
+  <script src="/receiver.js"></script>
+</body>
+</html>
