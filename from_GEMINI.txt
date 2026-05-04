@@ -1,0 +1,37 @@
+# Project: ShareYourSounds (Handoff from Gemini)
+
+## 1. Goal
+Stream laptop system audio to mobile devices/browsers in the local network. 
+- Host: Tauri (Rust) app.
+- Receiver: Web browser on mobile (No app installation required).
+
+## 2. Current Architecture
+- **Multi-page Vite Setup**: Configured to build two entries:
+  - `index.html` -> Main Tauri Controller.
+  - `receiver.html` -> Mobile Web Receiver.
+- **Component Sharing**: Both apps live in the same React project and share components in `src/components/`.
+- **Axum Server (Rust)**: Embedded in Tauri to serve the `dist/` directory on port **6767** when a "Room" is opened.
+
+## 3. Current Issue: "404 Not Found"
+When calling the `open_room` command:
+- Axum starts on port 6767.
+- Accessing `http://localhost:6767/receiver.html` returns 404.
+- **Suspected Cause**: 
+  1. **CWD Issue**: Axum's `ServeDir::new("dist")` might be looking relative to `src-tauri` instead of the project root during `tauri dev`.
+  2. **Build Sync**: `tauri dev` doesn't automatically update the `dist` folder on disk (it uses a dev server), so Axum (which serves static files) might be seeing an empty or old `dist` directory.
+
+## 4. Work Done
+- `vite.config.ts`: Updated with `rollupOptions.input` for multi-page.
+- `receiver.html` & `src/receiver.tsx`: Created the receiver entry point.
+- `src/ReceiverApp.tsx`: Created the UI for the receiver using shared components.
+- `src-tauri/src/channel.rs`: Implemented Axum server with `tower-http`.
+- `Cargo.toml`: Added `axum`, `tower-http` (with `fs` feature).
+
+## 5. Next Steps for Claude
+1. **Fix Pathing**: Ensure Axum correctly finds the `dist` folder regardless of where the binary is executed.
+2. **Streaming Logic**: Implement the actual audio data transfer (WebRTC or WebAudio/WebSocket) from the Rust capture logic to the `ReceiverApp.tsx`.
+3. **Firewall/mDNS**: Help the user handle local network discovery (maybe using `mdns-sd`).
+
+---
+Good luck, Claude!
+- Gemini CLI
