@@ -89,20 +89,16 @@ function App() {
       )}
 
       {status === "waiting" && (
-        <div className="flex flex-col items-center">
-          <p className="text-yellow-400 text-lg mb-2">
-            Waiting for connection...
-          </p>
-          <p className="text-gray-400 text-sm mb-2 text-center">
-            Open this URL on your mobile device:
-          </p>
-          <p className="text-white font-mono bg-black p-2 rounded mb-4 break-all">
-            {receiverUrl}
-          </p>
+        <div className="flex gap-3 w-full max-w-sm">
           <QRCode value={receiverUrl} size={qrSize} />
-          <Button type="button" onClick={handleDisconnect}>
-            Cancel
-          </Button>
+          <div className="flex flex-col justify-between min-w-0" style={{ height: qrSize }}>
+            <p className="text-white font-mono text-xs bg-[#111110] p-2 rounded break-all leading-relaxed overflow-hidden">
+              {receiverUrl}
+            </p>
+            <Button type="button" onClick={handleDisconnect}>
+              Cancel
+            </Button>
+          </div>
         </div>
       )}
     </main>
