@@ -48,5 +48,20 @@ jobs:
             - `.deb` — Ubuntu/Debian 계열 패키지
 
             > Windows는 아직 지원하지 않습니다.
+
+            ## 방화벽 설정
+
+            모바일 기기에서 접속하려면 TCP **6767** 포트를 열어야 합니다.
+
+            **ufw**
+            ```
+            sudo ufw allow 6767/tcp
+            ```
+
+            **firewalld**
+            ```
+            sudo firewall-cmd --add-port=6767/tcp --permanent
+            sudo firewall-cmd --reload
+            ```
           releaseDraft: false
           prerelease: false

@@ -14,6 +14,21 @@
 
 - **호스트**: 시스템 소리를 캡처해서 송출하는 기기
 
+## 방화벽 설정 (Linux)
+
+모바일 기기에서 접속하려면 TCP **6767** 포트를 열어야 합니다.
+
+**ufw**
+```bash
+sudo ufw allow 6767/tcp
+```
+
+**firewalld**
+```bash
+sudo firewall-cmd --add-port=6767/tcp --permanent
+sudo firewall-cmd --reload
+```
+
 ## 기술 스택
 
 - **Frontend**: React + TypeScript (Vite)

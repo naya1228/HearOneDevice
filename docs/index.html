@@ -220,6 +220,26 @@
   <div class="divider"></div>
 
   <section class="section">
+    <h2>방화벽 설정</h2>
+    <div class="steps">
+      <div class="step">
+        <div class="step-text">
+          <strong>모바일 기기에서 접속하려면 TCP <span style="color:#FD6000;font-family:monospace">6767</span> 포트를 열어야 합니다.</strong>
+          <span style="display:block;margin-top:10px;font-family:monospace;background:#1F1F1E;padding:10px;border-radius:6px;line-height:2">
+            # ufw<br />
+            sudo ufw allow 6767/tcp<br /><br />
+            # firewalld<br />
+            sudo firewall-cmd --add-port=6767/tcp --permanent<br />
+            sudo firewall-cmd --reload
+          </span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div class="divider"></div>
+
+  <section class="section">
     <h2>기술 스택</h2>
     <div class="tags">
       <span class="tag">React + TypeScript</span>
