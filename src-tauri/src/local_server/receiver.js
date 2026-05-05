@@ -3,11 +3,18 @@ const CHANNELS = 2;
 const MAX_AHEAD_SEC = 0.06;
 
 let audioCtx = null;
+let mediaEl = null;
+let streamDest = null;
 let ws = null;
 let nextPlayTime = 0;
 
-function connect() {
+async function connect() {
   audioCtx = new AudioContext({ sampleRate: SAMPLE_RATE });
+  streamDest = audioCtx.createMediaStreamDestination();
+  mediaEl = document.getElementById('media-sink');
+  mediaEl.srcObject = streamDest.stream;
+  mediaEl.volume = 1;
+  await mediaEl.play();
 
   if ('mediaSession' in navigator) {
     navigator.mediaSession.metadata = new MediaMetadata({
@@ -17,6 +24,7 @@ function connect() {
     navigator.mediaSession.playbackState = 'playing';
     navigator.mediaSession.setActionHandler('play', () => {
       audioCtx?.resume();
+      mediaEl?.play();
       navigator.mediaSession.playbackState = 'playing';
     });
     navigator.mediaSession.setActionHandler('pause', () => disconnect());
@@ -47,7 +55,7 @@ function connect() {
 
     const source = audioCtx.createBufferSource();
     source.buffer = buffer;
-    source.connect(audioCtx.destination);
+    source.connect(streamDest);
 
     if (nextPlayTime < now) nextPlayTime = now + 0.01;
     source.start(nextPlayTime);
@@ -61,12 +69,15 @@ function connect() {
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible' && audioCtx?.state === 'suspended') {
     audioCtx.resume();
+    mediaEl?.play();
   }
 });
 
 function disconnect() {
   if (ws) { ws.close(); ws = null; }
+  if (mediaEl) { mediaEl.srcObject = null; mediaEl = null; }
   if (audioCtx) { audioCtx.close(); audioCtx = null; }
+  streamDest = null;
   if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'none';
   showIdle();
 }
