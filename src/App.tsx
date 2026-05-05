@@ -15,8 +15,20 @@ function useIP() {
 
 type Status = "idle" | "waiting" | "connecting" | "connected" | "failed";
 
+function useQRSize() {
+  const [size, setSize] = useState(160);
+  useEffect(() => {
+    const update = () => setSize(Math.min(160, window.innerHeight * 0.25));
+    update();
+    window.addEventListener("resize", update);
+    return () => window.removeEventListener("resize", update);
+  }, []);
+  return size;
+}
+
 function App() {
   const ip = useIP();
+  const qrSize = useQRSize();
   const [status, setStatus] = useState<Status>("idle");
   //const [hostIp, setHostIp] = useState("");
   const [_error, setError] = useState("");
@@ -87,7 +99,7 @@ function App() {
           <p className="text-white font-mono bg-black p-2 rounded mb-4 break-all">
             {receiverUrl}
           </p>
-          <QRCode value={receiverUrl} />
+          <QRCode value={receiverUrl} size={qrSize} />
           <Button type="button" onClick={handleDisconnect}>
             Cancel
           </Button>
