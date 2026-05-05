@@ -128,6 +128,41 @@
       line-height: 1.5;
     }
 
+    /* ── Firewall ── */
+    .firewall-box {
+      background: #2A2A29;
+      border-radius: 10px;
+      padding: 20px 24px;
+    }
+
+    .firewall-desc {
+      color: #C8C7C0;
+      font-size: 0.95rem;
+      margin-bottom: 14px;
+      line-height: 1.6;
+    }
+
+    .firewall-desc code {
+      color: #FD6000;
+      font-family: monospace;
+    }
+
+    .firewall-code {
+      background: #1A1A19;
+      border-radius: 6px;
+      padding: 14px 16px;
+      font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', monospace;
+      font-size: 0.83rem;
+      color: #9A9990;
+      line-height: 1.8;
+      margin: 0;
+      white-space: pre;
+      overflow-x: auto;
+      width: 100%;
+      box-sizing: border-box;
+      display: block;
+    }
+
     /* ── Stack ── */
     .tags {
       display: flex;
@@ -221,19 +256,14 @@
 
   <section class="section">
     <h2>방화벽 설정</h2>
-    <div class="steps">
-      <div class="step">
-        <div class="step-text">
-          <strong>모바일 기기에서 접속하려면 TCP <span style="color:#FD6000;font-family:monospace">6767</span> 포트를 열어야 합니다.</strong>
-          <span style="display:block;margin-top:10px;font-family:monospace;background:#1F1F1E;padding:10px;border-radius:6px;line-height:2">
-            # ufw<br />
-            sudo ufw allow 6767/tcp<br /><br />
-            # firewalld<br />
-            sudo firewall-cmd --add-port=6767/tcp --permanent<br />
-            sudo firewall-cmd --reload
-          </span>
-        </div>
-      </div>
+    <div class="firewall-box">
+      <p class="firewall-desc">모바일 기기에서 접속하려면 TCP <code>6767</code> 포트를 열어야 합니다.</p>
+      <pre class="firewall-code"># ufw
+sudo ufw allow 6767/tcp
+
+# firewalld
+sudo firewall-cmd --add-port=6767/tcp --permanent
+sudo firewall-cmd --reload</pre>
     </div>
   </section>
 
