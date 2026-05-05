@@ -1,29 +1,37 @@
-# ShareYourSounds
+# HearOneDevice
 
-버즈 하나로 2~3개 디바이스의 소리를 동시에 듣는 리눅스 앱
+Windows 또는 Linux PC의 시스템 오디오를 같은 네트워크의 다른 기기에서 브라우저로 들을 수 있게 해주는 Tauri 앱입니다.
 
-## 왜 만들었나
+## 지원 플랫폼
 
-블루투스 이어폰을 휴대폰에 연결하면, 노트북으로 유튜브 소리를 들을 수 없음
+- Host app: Windows, Linux
+- Receiver: WebSocket과 Web Audio를 지원하는 브라우저
 
-## 구조
+Android 앱 빌드는 더 이상 지원하지 않습니다.
 
+## 개발
+
+```bash
+npm install
+npm run tauri dev
 ```
-노트북이나 데스크톱에서 앱 실행 → 앱에서 웹서버 실행→  모바일에서 로컬 웹 접속 → 웹소켓으로 오디오 재생
+
+## 빌드
+
+```bash
+npm run tauri build
 ```
 
-- **호스트**: 시스템 소리를 캡처해서 송출하는 기기
+## Linux 방화벽
 
-## 방화벽 설정 (Linux)
+다른 기기에서 수신 페이지에 접속하려면 TCP 6767 포트를 열어야 합니다.
 
-모바일 기기에서 접속하려면 TCP **6767** 포트를 열어야 합니다.
-
-**ufw**
 ```bash
 sudo ufw allow 6767/tcp
 ```
 
-**firewalld**
+또는 firewalld를 사용하는 경우:
+
 ```bash
 sudo firewall-cmd --add-port=6767/tcp --permanent
 sudo firewall-cmd --reload
@@ -31,7 +39,7 @@ sudo firewall-cmd --reload
 
 ## 기술 스택
 
-- **Frontend**: React + TypeScript (Vite)
-- **Backend**: Rust (Tauri 2)
-- **오디오 캡처**: PulseAudio (Linux) / cpal (Windows)
-- **스트리밍**: WebSocket
+- Frontend: React, TypeScript, Vite
+- Backend: Rust, Tauri 2
+- Audio capture: cpal on Windows, PulseAudio on Linux
+- Streaming: WebSocket

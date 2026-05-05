@@ -3,21 +3,11 @@ const CHANNELS = 2;
 const MAX_AHEAD_SEC = 0.06;
 
 let audioCtx = null;
-let mediaEl = null;       // AudioContext 출력을 받는 <audio> — Android Audio Focus 획득용
-let streamDest = null;
 let ws = null;
 let nextPlayTime = 0;
 
 function connect() {
   audioCtx = new AudioContext({ sampleRate: SAMPLE_RATE });
-
-  // audioCtx.destination → 실제 스피커 출력 (Chrome이 AudioContext를 "audible"로 인식해 백그라운드 suspend 방지)
-  // streamDest → <audio> 엘리먼트 (Android Audio Focus 획득용, 음소거)
-  streamDest = audioCtx.createMediaStreamDestination();
-  mediaEl = document.getElementById('media-sink');
-  mediaEl.srcObject = streamDest.stream;
-  mediaEl.volume = 0;  // 실제 소리는 audioCtx.destination에서 나오므로 중복 방지
-  mediaEl.play();
 
   if ('mediaSession' in navigator) {
     navigator.mediaSession.metadata = new MediaMetadata({
@@ -27,7 +17,6 @@ function connect() {
     navigator.mediaSession.playbackState = 'playing';
     navigator.mediaSession.setActionHandler('play', () => {
       audioCtx?.resume();
-      mediaEl?.play();
       navigator.mediaSession.playbackState = 'playing';
     });
     navigator.mediaSession.setActionHandler('pause', () => disconnect());
@@ -58,8 +47,7 @@ function connect() {
 
     const source = audioCtx.createBufferSource();
     source.buffer = buffer;
-    source.connect(audioCtx.destination); // 실제 스피커 — Chrome이 audible로 인식해 백그라운드 suspend 안 함
-    source.connect(streamDest);           // Android Audio Focus용 <audio> 엘리먼트 피드
+    source.connect(audioCtx.destination);
 
     if (nextPlayTime < now) nextPlayTime = now + 0.01;
     source.start(nextPlayTime);
@@ -78,9 +66,7 @@ document.addEventListener('visibilitychange', () => {
 
 function disconnect() {
   if (ws) { ws.close(); ws = null; }
-  if (mediaEl) { mediaEl.srcObject = null; }
   if (audioCtx) { audioCtx.close(); audioCtx = null; }
-  streamDest = null;
   if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'none';
   showIdle();
 }

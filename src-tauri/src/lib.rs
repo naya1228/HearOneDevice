@@ -1,12 +1,11 @@
-#[cfg(target_os = "android")]
-mod capture_android;
+#[cfg(not(any(target_os = "linux", target_os = "windows")))]
+compile_error!("HearOneDevice supports Windows and Linux only.");
+
 #[cfg(target_os = "linux")]
 mod capture_linux;
 #[cfg(target_os = "windows")]
 mod capture_win;
 
-#[cfg(target_os = "android")]
-use capture_android::{capture_sound, stop_capture, CaptureStream};
 #[cfg(target_os = "linux")]
 use capture_linux::{capture_sound, stop_capture, CaptureStream};
 #[cfg(target_os = "windows")]
@@ -31,7 +30,6 @@ fn get_ip() -> String {
     format!("{}", local_address)
 }
 
-#[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let (audio_tx, _) = tokio::sync::broadcast::channel::<bytes::Bytes>(8);
 
