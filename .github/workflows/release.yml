@@ -46,25 +46,61 @@ jobs:
           releaseBody: |
             ## 설치 방법
 
+            ### Windows
+            - `.msi` — Windows 설치 프로그램
+            - `.exe` (NSIS) — 포터블 설치 프로그램
+
             ### Linux (PulseAudio 필요)
             - `.AppImage` — 압축 해제 없이 바로 실행
             - `.deb` — Ubuntu/Debian 계열 패키지
-
-            > Windows는 아직 지원하지 않습니다.
 
             ## 방화벽 설정
 
             모바일 기기에서 접속하려면 TCP **6767** 포트를 열어야 합니다.
 
-            **ufw**
+            **Windows (PowerShell 관리자 권한)**
+            ```
+            New-NetFirewallRule -DisplayName "HearOneDevice" -Direction Inbound -Protocol TCP -LocalPort 6767 -Action Allow
+            ```
+
+            **ufw (Linux)**
             ```
             sudo ufw allow 6767/tcp
             ```
 
-            **firewalld**
+            **firewalld (Linux)**
             ```
             sudo firewall-cmd --add-port=6767/tcp --permanent
             sudo firewall-cmd --reload
             ```
+          releaseDraft: false
+          prerelease: false
+
+  build-windows:
+    runs-on: windows-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: './src-tauri -> target'
+
+      - run: npm ci
+
+      - uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: 'HearOneDevice ${{ github.ref_name }}'
           releaseDraft: false
           prerelease: false
