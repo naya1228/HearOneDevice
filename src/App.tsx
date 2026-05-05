@@ -3,6 +3,7 @@ import "./App.css";
 import Button from "./components/Button";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import QRCode from "react-qr-code";
 
 function useIP() {
   const [ip, setIP] = useState("");
@@ -80,6 +81,7 @@ function App() {
           <p className="text-white font-mono bg-black p-2 rounded mb-4 break-all">
             {receiverUrl}
           </p>
+          <QRCode value={receiverUrl} />
           <Button type="button" onClick={handleDisconnect}>
             Cancel
           </Button>
