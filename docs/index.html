@@ -258,10 +258,7 @@
     <h2>방화벽 설정</h2>
     <div class="firewall-box">
       <p class="firewall-desc">모바일 기기에서 접속하려면 TCP <code>6767</code> 포트를 열어야 합니다.</p>
-      <pre class="firewall-code"># Windows (PowerShell 관리자 권한)
-New-NetFirewallRule -DisplayName "HearOneDevice" -Direction Inbound -Protocol TCP -LocalPort 6767 -Action Allow
-
-# Linux · ufw
+      <pre class="firewall-code"># Linux · ufw
 sudo ufw allow 6767/tcp
 
 # Linux · firewalld

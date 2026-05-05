@@ -58,11 +58,6 @@ jobs:
 
             모바일 기기에서 접속하려면 TCP **6767** 포트를 열어야 합니다.
 
-            **Windows (PowerShell 관리자 권한)**
-            ```
-            New-NetFirewallRule -DisplayName "HearOneDevice" -Direction Inbound -Protocol TCP -LocalPort 6767 -Action Allow
-            ```
-
             **ufw (Linux)**
             ```
             sudo ufw allow 6767/tcp
