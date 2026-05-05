@@ -1,26 +1,47 @@
 const SAMPLE_RATE = 48000;
 const CHANNELS = 2;
-const MAX_AHEAD_SEC = 0.15; // 이 이상 쌓이면 패킷 드롭
+const MAX_AHEAD_SEC = 0.06;
 
 let audioCtx = null;
+let mediaEl = null;       // AudioContext 출력을 받는 <audio> — Android Audio Focus 획득용
+let streamDest = null;
 let ws = null;
 let nextPlayTime = 0;
 
 function connect() {
   audioCtx = new AudioContext({ sampleRate: SAMPLE_RATE });
+
+  // audioCtx.destination → 실제 스피커 출력 (Chrome이 AudioContext를 "audible"로 인식해 백그라운드 suspend 방지)
+  // streamDest → <audio> 엘리먼트 (Android Audio Focus 획득용, 음소거)
+  streamDest = audioCtx.createMediaStreamDestination();
+  mediaEl = document.getElementById('media-sink');
+  mediaEl.srcObject = streamDest.stream;
+  mediaEl.volume = 0;  // 실제 소리는 audioCtx.destination에서 나오므로 중복 방지
+  mediaEl.play();
+
+  if ('mediaSession' in navigator) {
+    navigator.mediaSession.metadata = new MediaMetadata({
+      title: 'ShareYourSounds',
+      artist: 'Live Audio',
+    });
+    navigator.mediaSession.playbackState = 'playing';
+    navigator.mediaSession.setActionHandler('play', () => {
+      audioCtx?.resume();
+      mediaEl?.play();
+      navigator.mediaSession.playbackState = 'playing';
+    });
+    navigator.mediaSession.setActionHandler('pause', () => disconnect());
+    navigator.mediaSession.setActionHandler('stop', () => disconnect());
+  }
+
   nextPlayTime = 0;
 
   ws = new WebSocket(`ws://${window.location.host}/audio`);
   ws.binaryType = 'arraybuffer';
-
-  ws.onopen = () => {
-    showListening();
-  };
+  ws.onopen = () => showListening();
 
   ws.onmessage = (e) => {
     const now = audioCtx.currentTime;
-
-    // 버퍼가 MAX_AHEAD_SEC 이상 쌓이면 드롭 (초기 버스트 / 느린 클라이언트 대응)
     if (nextPlayTime > now + MAX_AHEAD_SEC) return;
 
     const f32 = new Float32Array(e.data);
@@ -37,10 +58,10 @@ function connect() {
 
     const source = audioCtx.createBufferSource();
     source.buffer = buffer;
-    source.connect(audioCtx.destination);
+    source.connect(audioCtx.destination); // 실제 스피커 — Chrome이 audible로 인식해 백그라운드 suspend 안 함
+    source.connect(streamDest);           // Android Audio Focus용 <audio> 엘리먼트 피드
 
-    // 언더런이면 현재 시각 기준으로 재동기화
-    if (nextPlayTime < now) nextPlayTime = now + 0.03;
+    if (nextPlayTime < now) nextPlayTime = now + 0.01;
     source.start(nextPlayTime);
     nextPlayTime += buffer.duration;
   };
@@ -49,9 +70,18 @@ function connect() {
   ws.onerror = disconnect;
 }
 
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible' && audioCtx?.state === 'suspended') {
+    audioCtx.resume();
+  }
+});
+
 function disconnect() {
   if (ws) { ws.close(); ws = null; }
+  if (mediaEl) { mediaEl.srcObject = null; }
   if (audioCtx) { audioCtx.close(); audioCtx = null; }
+  streamDest = null;
+  if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'none';
   showIdle();
 }
 

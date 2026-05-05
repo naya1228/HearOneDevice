@@ -1,4 +1,5 @@
 use bytes::Bytes;
+use libpulse_binding::def::BufferAttr;
 use libpulse_binding::sample::{Format, Spec};
 use libpulse_binding::stream::Direction;
 use libpulse_simple_binding::Simple as LinuxAudioCapture;
@@ -12,6 +13,9 @@ pub struct CaptureStream(pub Mutex<Option<Arc<LinuxAudioCapture>>>);
 
 const SAMPLE_RATE: u32 = 48000;
 const CHANNELS: u16 = 2;
+// 10ms 청크
+const CHUNK_FRAMES: usize = 480;
+const CHUNK_BYTES: usize = CHUNK_FRAMES * CHANNELS as usize * std::mem::size_of::<f32>();
 
 #[tauri::command]
 pub fn capture_sound(
@@ -35,6 +39,13 @@ pub fn capture_sound(
         rate: SAMPLE_RATE,
     };
 
+    // PulseAudio 레이턴시를 10ms로 고정
+    let buf_attr = BufferAttr {
+        maxlength: u32::MAX,
+        fragsize: CHUNK_BYTES as u32,
+        ..Default::default()
+    };
+
     let stream = Arc::new(
         LinuxAudioCapture::new(
             None,
@@ -44,7 +55,7 @@ pub fn capture_sound(
             "capture",
             &spec,
             None,
-            None,
+            Some(&buf_attr),
         )
         .map_err(|e| e.to_string().unwrap_or("PulseAudio error".into()))?,
     );
@@ -52,14 +63,12 @@ pub fn capture_sound(
     let stream_clone = stream.clone();
     let tx = broadcast.0.clone();
     std::thread::spawn(move || {
-        let frame_bytes = (CHANNELS as usize) * std::mem::size_of::<f32>();
-        let mut buf = vec![0u8; frame_bytes * 1024];
+        let mut buf = vec![0u8; CHUNK_BYTES];
 
         loop {
             if stream_clone.read(&mut buf).is_err() {
                 break;
             }
-            // 수신자가 없으면 전송 스킵
             if tx.receiver_count() > 0 {
                 let _ = tx.send(Bytes::copy_from_slice(&buf));
             }
