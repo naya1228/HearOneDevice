@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ShareYourSounds</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: #1F1F1E;
+      color: #fff;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      min-height: 100dvh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    /* ── Hero ── */
+    .hero {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 80px 24px 64px;
+      text-align: center;
+      max-width: 640px;
+      width: 100%;
+    }
+
+    .hero img {
+      width: 96px;
+      height: 96px;
+      border-radius: 16px;
+      margin-bottom: 24px;
+    }
+
+    .hero h1 {
+      font-size: 2.6rem;
+      font-weight: 700;
+      letter-spacing: -0.5px;
+      margin-bottom: 16px;
+    }
+
+    .hero h1 span { color: #FD6000; }
+
+    .hero p {
+      color: #9A9A9A;
+      font-size: 1.1rem;
+      line-height: 1.7;
+      margin-bottom: 36px;
+    }
+
+    .btn-download {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      background: #FD6000;
+      color: #fff;
+      font-size: 1rem;
+      font-weight: 600;
+      padding: 14px 32px;
+      border-radius: 8px;
+      text-decoration: none;
+      transition: opacity 0.15s;
+    }
+    .btn-download:hover { opacity: 0.85; }
+
+    .platform-note {
+      margin-top: 12px;
+      font-size: 0.82rem;
+      color: #666;
+    }
+
+    /* ── How it works ── */
+    .section {
+      width: 100%;
+      max-width: 720px;
+      padding: 0 24px 80px;
+    }
+
+    .section h2 {
+      font-size: 1.2rem;
+      font-weight: 600;
+      color: #FD6000;
+      margin-bottom: 24px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    .steps {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .step {
+      display: flex;
+      align-items: flex-start;
+      gap: 16px;
+      background: #2A2A29;
+      border-radius: 10px;
+      padding: 18px 20px;
+    }
+
+    .step-num {
+      flex-shrink: 0;
+      width: 32px;
+      height: 32px;
+      background: #FD6000;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-size: 0.9rem;
+    }
+
+    .step-text strong {
+      display: block;
+      font-size: 0.95rem;
+      margin-bottom: 4px;
+    }
+
+    .step-text span {
+      color: #888;
+      font-size: 0.875rem;
+      line-height: 1.5;
+    }
+
+    /* ── Stack ── */
+    .tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 8px;
+    }
+
+    .tag {
+      background: #2A2A29;
+      border: 1px solid #3A3A39;
+      color: #ccc;
+      font-size: 0.82rem;
+      padding: 6px 14px;
+      border-radius: 20px;
+    }
+
+    /* ── Footer ── */
+    footer {
+      margin-top: auto;
+      padding: 24px;
+      color: #555;
+      font-size: 0.8rem;
+      text-align: center;
+    }
+
+    footer a { color: #FD6000; text-decoration: none; }
+    footer a:hover { text-decoration: underline; }
+
+    /* ── Divider ── */
+    .divider {
+      width: 100%;
+      max-width: 720px;
+      height: 1px;
+      background: #2A2A29;
+      margin: 0 24px 64px;
+    }
+  </style>
+</head>
+<body>
+
+  <section class="hero">
+    <img src="https://raw.githubusercontent.com/naya1228/HearOnDevice/main/public/sharing.svg" alt="ShareYourSounds icon" onerror="this.style.display='none'" />
+    <h1>Share<span>Your</span>Sounds</h1>
+    <p>
+      버즈 하나로 여러 기기의 소리를 동시에.<br />
+      노트북에서 앱을 실행하면 QR코드가 뜨고,<br />
+      폰에서 찍으면 바로 오디오가 전달됩니다.
+    </p>
+    <a class="btn-download" href="https://github.com/naya1228/HearOnDevice/releases/latest" target="_blank">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+        <polyline points="7 10 12 15 17 10"/>
+        <line x1="12" y1="15" x2="12" y2="3"/>
+      </svg>
+      최신 버전 다운로드
+    </a>
+    <p class="platform-note">Linux (PulseAudio) · AppImage / .deb</p>
+  </section>
+
+  <div class="divider"></div>
+
+  <section class="section">
+    <h2>사용 방법</h2>
+    <div class="steps">
+      <div class="step">
+        <div class="step-num">1</div>
+        <div class="step-text">
+          <strong>앱 실행</strong>
+          <span>노트북 또는 데스크톱에서 ShareYourSounds를 실행합니다.</span>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">2</div>
+        <div class="step-text">
+          <strong>Open Host & Wait</strong>
+          <span>버튼을 누르면 로컬 서버가 열리고 QR코드와 URL이 표시됩니다.</span>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">3</div>
+        <div class="step-text">
+          <strong>폰에서 QR 스캔</strong>
+          <span>같은 와이파이에 연결된 폰으로 QR을 찍으면 오디오가 실시간 전달됩니다.</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div class="divider"></div>
+
+  <section class="section">
+    <h2>기술 스택</h2>
+    <div class="tags">
+      <span class="tag">React + TypeScript</span>
+      <span class="tag">Rust · Tauri 2</span>
+      <span class="tag">WebRTC</span>
+      <span class="tag">WebSocket</span>
+      <span class="tag">PulseAudio (Linux)</span>
+    </div>
+  </section>
+
+  <footer>
+    <a href="https://github.com/naya1228/HearOnDevice" target="_blank">GitHub</a>
+    &nbsp;·&nbsp;
+    MIT License
+  </footer>
+
+</body>
+</html>
