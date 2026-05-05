@@ -97,11 +97,9 @@ function App() {
                 {receiverUrl}
               </p>
             </div>
-            <div className="self-start">
-              <Button type="button" onClick={handleDisconnect}>
-                Cancel
-              </Button>
-            </div>
+            <Button type="button" onClick={handleDisconnect}>
+              Cancel
+            </Button>
           </div>
         </div>
       )}
