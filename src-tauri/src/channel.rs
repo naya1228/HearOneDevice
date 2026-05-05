@@ -60,6 +60,14 @@ async fn stream_audio(mut socket: WebSocket, tx: broadcast::Sender<Bytes>) {
 }
 
 #[tauri::command]
+pub async fn close_room(server: State<'_, ServerHandle>) -> Result<(), String> {
+    if let Some(handle) = server.0.lock().await.take() {
+        handle.abort();
+    }
+    Ok(())
+}
+
+#[tauri::command]
 pub async fn open_room(
     broadcast: State<'_, AudioBroadcast>,
     server: State<'_, ServerHandle>,

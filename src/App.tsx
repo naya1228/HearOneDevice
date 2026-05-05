@@ -65,7 +65,11 @@ function App() {
     }
   };
 
-  const handleDisconnect = async () => {};
+  const handleDisconnect = async () => {
+    await Promise.all([invoke("close_room"), invoke("stop_capture")]);
+    setStatus("idle");
+    setReceiverUrl("");
+  };
 
   return (
     <main className="flex flex-col bg-[#1F1F1E] items-center p-3 h-dvh">
@@ -73,11 +77,13 @@ function App() {
       <span className="text-white text-4xl font-bold m-2">ShareYourSounds</span>
       <p className="text-gray-500 mb-4">your local ip is {ip}</p>
 
-      <div className="text-xs text-[#C8C7C0] bg-[#2A2A29] rounded-md p-3 mb-4 max-w-sm text-center leading-relaxed">
-        방화벽에서 TCP <span className="text-[#FD6000] font-mono">6767</span> 포트를 열어야 모바일에서 접속할 수 있습니다.<br />
-        <span className="font-mono mt-1 block">ufw allow 6767/tcp</span>
-        <span className="font-mono">firewall-cmd --add-port=6767/tcp --permanent</span>
-      </div>
+      {status === "idle" && (
+        <div className="text-xs text-[#C8C7C0] bg-[#2A2A29] rounded-md p-3 mb-4 max-w-sm text-center leading-relaxed">
+          방화벽에서 TCP <span className="text-[#FD6000] font-mono">6767</span> 포트를 열어야 모바일에서 접속할 수 있습니다.<br />
+          <span className="font-mono mt-1 block">ufw allow 6767/tcp</span>
+          <span className="font-mono">firewall-cmd --add-port=6767/tcp --permanent</span>
+        </div>
+      )}
 
       {status === "idle" && (
         <Button type="button" onClick={handleOpenRoom}>

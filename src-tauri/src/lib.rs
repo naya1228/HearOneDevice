@@ -13,7 +13,7 @@ use capture_linux::{capture_sound, stop_capture, CaptureStream};
 use capture_win::{capture_sound, stop_capture, CaptureStream};
 
 mod channel;
-use channel::{open_room, AudioBroadcast, ServerHandle};
+use channel::{close_room, open_room, AudioBroadcast, ServerHandle};
 
 use local_ip_address::local_ip;
 use serde::Serialize;
@@ -45,6 +45,7 @@ pub fn run() {
             capture_sound,
             stop_capture,
             open_room,
+            close_room,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
