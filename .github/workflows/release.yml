@@ -39,7 +39,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           tagName: ${{ github.ref_name }}
-          releaseName: 'ShareYourSounds ${{ github.ref_name }}'
+          releaseName: 'HearOneDevice ${{ github.ref_name }}'
           releaseBody: |
             ## 설치 방법
 
