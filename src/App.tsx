@@ -91,13 +91,15 @@ function App() {
       {status === "waiting" && (
         <div className="flex gap-3 w-full max-w-sm">
           <QRCode value={receiverUrl} size={qrSize} />
-          <div className="flex flex-col justify-between min-w-0" style={{ height: qrSize }}>
-            <p className="text-white font-mono text-xs bg-[#111110] p-2 rounded break-all leading-relaxed overflow-hidden">
+          <div className="flex flex-col min-w-0" style={{ height: qrSize }}>
+            <p className="text-white font-mono text-xs bg-[#111110] p-2 rounded break-all leading-relaxed flex-1 mb-2 overflow-auto">
               {receiverUrl}
             </p>
-            <Button type="button" onClick={handleDisconnect}>
-              Cancel
-            </Button>
+            <div className="self-start">
+              <Button type="button" onClick={handleDisconnect}>
+                Cancel
+              </Button>
+            </div>
           </div>
         </div>
       )}
