@@ -220,7 +220,7 @@
       </svg>
       최신 버전 다운로드
     </a>
-    <p class="platform-note">Linux (PulseAudio) · AppImage / .deb</p>
+    <p class="platform-note">Windows · Linux (PulseAudio) · AppImage / .deb / .msi</p>
   </section>
 
   <div class="divider"></div>
@@ -258,10 +258,13 @@
     <h2>방화벽 설정</h2>
     <div class="firewall-box">
       <p class="firewall-desc">모바일 기기에서 접속하려면 TCP <code>6767</code> 포트를 열어야 합니다.</p>
-      <pre class="firewall-code"># ufw
+      <pre class="firewall-code"># Windows (PowerShell 관리자 권한)
+New-NetFirewallRule -DisplayName "HearOneDevice" -Direction Inbound -Protocol TCP -LocalPort 6767 -Action Allow
+
+# Linux · ufw
 sudo ufw allow 6767/tcp
 
-# firewalld
+# Linux · firewalld
 sudo firewall-cmd --add-port=6767/tcp --permanent
 sudo firewall-cmd --reload</pre>
     </div>
@@ -276,7 +279,8 @@ sudo firewall-cmd --reload</pre>
       <span class="tag">Rust · Tauri 2</span>
       <span class="tag">WebRTC</span>
       <span class="tag">WebSocket</span>
-      <span class="tag">PulseAudio (Linux)</span>
+      <span class="tag">Windows / Linux</span>
+      <span class="tag">PulseAudio · WASAPI</span>
     </div>
   </section>
 
