@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import "./App.css";
 import Button from "./components/Button";
 import { invoke } from "@tauri-apps/api/core";
@@ -15,23 +15,24 @@ function useIP() {
 
 type Status = "idle" | "waiting" | "connecting" | "connected" | "failed";
 
-function useQRSize() {
-  const [size, setSize] = useState(160);
-  useEffect(() => {
-    const update = () => setSize(Math.min(160, window.innerHeight * 0.25));
-    update();
-    window.addEventListener("resize", update);
-    return () => window.removeEventListener("resize", update);
-  }, []);
-  return size;
-}
-
 function App() {
   const ip = useIP();
-  const qrSize = useQRSize();
   const [status, setStatus] = useState<Status>("idle");
-  //const [hostIp, setHostIp] = useState("");
   const [_error, setError] = useState("");
+  const [receiverUrl, setReceiverUrl] = useState("");
+
+  const rightColRef = useRef<HTMLDivElement>(null);
+  const [qrSize, setQrSize] = useState(0);
+
+  useLayoutEffect(() => {
+    if (status !== "waiting") return;
+    const el = rightColRef.current;
+    if (!el) return;
+    const observer = new ResizeObserver(() => setQrSize(el.offsetHeight));
+    observer.observe(el);
+    setQrSize(el.offsetHeight);
+    return () => observer.disconnect();
+  }, [status]);
 
   useEffect(() => {
     const unlisten = listen<string>("rtc-status", (event) => {
@@ -50,8 +51,6 @@ function App() {
       unlisten.then((fn) => fn());
     };
   }, []);
-
-  const [receiverUrl, setReceiverUrl] = useState("");
 
   const handleOpenRoom = async () => {
     setError("");
@@ -81,18 +80,16 @@ function App() {
       </div>
 
       {status === "idle" && (
-        <>
-          <Button type="button" onClick={handleOpenRoom}>
-            Open Host & Wait
-          </Button>
-        </>
+        <Button type="button" onClick={handleOpenRoom}>
+          Open Host & Wait
+        </Button>
       )}
 
       {status === "waiting" && (
-        <div className="flex gap-3 w-full max-w-sm">
-          <QRCode value={receiverUrl} size={qrSize} />
-          <div className="flex flex-col gap-2 min-w-0" style={{ height: qrSize }}>
-            <div className="flex-1 bg-[#111110] rounded p-3 flex items-center">
+        <div className="flex gap-3 w-full max-w-sm items-start">
+          {qrSize > 0 && <QRCode value={receiverUrl} size={qrSize} />}
+          <div ref={rightColRef} className="flex flex-col gap-2 flex-1 min-w-0">
+            <div className="bg-[#111110] rounded p-3">
               <p className="text-white font-mono text-xs break-all leading-relaxed">
                 {receiverUrl}
               </p>
