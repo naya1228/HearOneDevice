@@ -46,7 +46,7 @@ pub fn capture_sound(
     *state.0.lock().unwrap() = Some(stream);
 
     Ok(AudioConfig {
-        sample_rate: sample_rate.0,
+        sample_rate,
         channels,
     })
 }
