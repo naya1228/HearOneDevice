@@ -37,6 +37,9 @@ jobs:
 
       - run: npm ci
 
+      - name: Download cloudflared binary
+        run: bash scripts/download-cloudflared.sh
+
       - uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -54,20 +57,9 @@ jobs:
             - `.AppImage` — 압축 해제 없이 바로 실행
             - `.deb` — Ubuntu/Debian 계열 패키지
 
-            ## 방화벽 설정
+            ## 동작 방식
 
-            모바일 기기에서 접속하려면 TCP **6767** 포트를 열어야 합니다.
-
-            **ufw (Linux)**
-            ```
-            sudo ufw allow 6767/tcp
-            ```
-
-            **firewalld (Linux)**
-            ```
-            sudo firewall-cmd --add-port=6767/tcp --permanent
-            sudo firewall-cmd --reload
-            ```
+            Cloudflare Quick Tunnel을 사용해 같은 네트워크가 아니어도(공공 WiFi, 다른 네트워크) 폰에서 접속할 수 있습니다. 별도의 방화벽 설정이 필요 없습니다.
           releaseDraft: false
           prerelease: false
 
@@ -90,6 +82,9 @@ jobs:
           workspaces: './src-tauri -> target'
 
       - run: npm ci
+
+      - name: Download cloudflared binary
+        run: powershell -ExecutionPolicy Bypass -File scripts\download-cloudflared.ps1
 
       - uses: tauri-apps/tauri-action@v0
         env:
