@@ -1,6 +1,10 @@
 const SAMPLE_RATE = 48000;
 const CHANNELS = 2;
-const MAX_AHEAD_SEC = 0.06;
+// 청취자가 호스트보다 이 시간 이상 앞서면 새 청크를 버려 지연이 누적되지 않게 함
+// 네트워크 지터 흡수용 버퍼. 이 값보다 앞서 있으면 새 청크를 버림
+const MAX_AHEAD_SEC = 0.1;
+// 끊긴 뒤 재시작/언더런 회복 시 다음 재생 시각의 head-start
+const RESYNC_HEAD_SEC = 0.03;
 
 let audioCtx = null;
 let mediaEl = null;
@@ -58,7 +62,7 @@ async function connect() {
     source.buffer = buffer;
     source.connect(streamDest);
 
-    if (nextPlayTime < now) nextPlayTime = now + 0.01;
+    if (nextPlayTime < now) nextPlayTime = now + RESYNC_HEAD_SEC;
     source.start(nextPlayTime);
     nextPlayTime += buffer.duration;
   };

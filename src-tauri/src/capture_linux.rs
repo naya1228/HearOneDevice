@@ -21,7 +21,7 @@ impl CaptureStream {
 
 const SAMPLE_RATE: u32 = 48000;
 const CHANNELS: u16 = 2;
-const CHUNK_FRAMES: usize = 480;
+const CHUNK_FRAMES: usize = 960;
 const CHUNK_BYTES: usize = CHUNK_FRAMES * CHANNELS as usize * std::mem::size_of::<f32>();
 
 #[tauri::command]
