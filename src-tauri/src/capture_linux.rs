@@ -39,7 +39,7 @@ pub fn capture_sound(
     let stream = Arc::new(
         LinuxAudioCapture::new(
             None,                   // server
-            "Heare-one-device",     // name
+            "HearOneDevice",     // name
             Direction::Record,      // dir
             Some(monitor.as_str()), // dev (monitor source)
             "capture",              // stream_name
