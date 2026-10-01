@@ -12,12 +12,50 @@ pub const CODEC: codec::Codec = codec::Codec::Ulaw16kMono;
 
 use serde::Serialize;
 use std::hash::{BuildHasher, Hasher};
+use std::sync::Arc;
 use tauri::{Manager, State};
-use tokio::sync::Mutex;
+use tokio::sync::{broadcast, Mutex};
 
-// 공유 중일 때만 Some. drop되면 캡처·BLE가 함께 멈춘다 (ble 먼저 drop되도록 순서 유지)
+/// 인코딩된 코덱 데이터가 흐르는 통로 (인코더 → 전송)
+pub type EncodedTx = broadcast::Sender<Arc<Vec<u8>>>;
+
+/// drop되면 인코딩을 멈춘다.
+pub struct Encoding(tokio::task::JoinHandle<()>);
+
+impl Drop for Encoding {
+    fn drop(&mut self) {
+        self.0.abort();
+    }
+}
+
+/// 캡처한 소리를 CODEC 으로 인코딩해 새 통로로 흘린다.
+/// 인코딩은 한 번만 하고, 전송 쪽 청취자들이 이 통로를 나눠 구독한다.
+pub fn start_encoding(audio: &audio::AudioTx) -> (Encoding, EncodedTx) {
+    let (tx, _) = broadcast::channel(64);
+    let task = tokio::spawn(encode_loop(audio.subscribe(), tx.clone()));
+    (Encoding(task), tx)
+}
+
+async fn encode_loop(mut rx: broadcast::Receiver<Arc<audio::AudioChunk>>, tx: EncodedTx) {
+    let mut enc = codec::encoder(CODEC);
+    loop {
+        match rx.recv().await {
+            Ok(chunk) => {
+                let data = enc.encode(&chunk);
+                if !data.is_empty() {
+                    let _ = tx.send(Arc::new(data));
+                }
+            }
+            Err(broadcast::error::RecvError::Lagged(_)) => continue,
+            Err(broadcast::error::RecvError::Closed) => break,
+        }
+    }
+}
+
+// 공유 중일 때만 Some. drop되면 전송·인코딩·캡처가 함께 멈춘다 (필드 순서 = drop 순서, ble 먼저)
 struct Sharing {
     ble: ble::BleServer,
+    _encoding: Encoding,
     _capture: capture::Capture,
 }
 
@@ -56,9 +94,10 @@ async fn start_sharing(state: State<'_, AppState>) -> Result<(), String> {
         return Ok(());
     }
     let audio = audio::channel();
-    let ble = ble::start(audio.clone(), state.id).await?;
+    let (encoding, encoded) = start_encoding(&audio);
+    let ble = ble::start(encoded, CODEC, state.id).await?;
     let capture = capture::start(audio)?;
-    *guard = Some(Sharing { ble, _capture: capture });
+    *guard = Some(Sharing { ble, _encoding: encoding, _capture: capture });
     Ok(())
 }
 

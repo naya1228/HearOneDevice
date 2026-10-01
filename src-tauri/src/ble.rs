@@ -1,9 +1,8 @@
 // BLE 송신 (Linux/BlueZ). PC가 광고(peripheral)하고 폰 앱이 찾아와 구독(central)한다.
-// 구독한 폰마다 notify로 codec/ 형식의 패킷을 계속 밀어 보낸다. 코덱은 lib.rs 의 CODEC.
+// 인코딩된 데이터(lib.rs 의 start_encoding)를 받아, 구독한 폰마다 notify로 패킷을 계속 밀어 보낸다.
 
-use crate::audio::{AudioChunk, AudioTx};
-use crate::codec::{self, Packetizer};
-use crate::CODEC;
+use crate::codec::{Codec, Packetizer};
+use crate::EncodedTx;
 use bluer::{
     adv::{Advertisement, AdvertisementHandle},
     gatt::local::{
@@ -39,7 +38,7 @@ pub fn device_id_hex(id: &DeviceId) -> String {
 pub struct BleServer {
     _adv: AdvertisementHandle,
     _app: ApplicationHandle,
-    tasks: Vec<tokio::task::JoinHandle<()>>,
+    accept_task: tokio::task::JoinHandle<()>,
     listeners: Arc<AtomicUsize>,
 }
 
@@ -51,13 +50,11 @@ impl BleServer {
 
 impl Drop for BleServer {
     fn drop(&mut self) {
-        for t in &self.tasks {
-            t.abort();
-        }
+        self.accept_task.abort();
     }
 }
 
-pub async fn start(audio: AudioTx, id: DeviceId) -> Result<BleServer, String> {
+pub async fn start(encoded: EncodedTx, codec: Codec, id: DeviceId) -> Result<BleServer, String> {
     let session = bluer::Session::new().await.map_err(|e| format!("BlueZ 연결 실패: {e}"))?;
     let adapter = session
         .default_adapter()
@@ -99,10 +96,6 @@ pub async fn start(audio: AudioTx, id: DeviceId) -> Result<BleServer, String> {
         .await
         .map_err(|e| format!("GATT 서버 등록 실패: {e}"))?;
 
-    // 인코딩은 한 번만 하고 결과를 모든 청취자에게 나눠준다
-    let (data_tx, _) = broadcast::channel::<Arc<Vec<u8>>>(64);
-    let encode_task = tokio::spawn(encode_loop(audio.subscribe(), data_tx.clone()));
-
     let listeners = Arc::new(AtomicUsize::new(0));
     let count = listeners.clone();
     let accept_task = tokio::spawn(async move {
@@ -112,40 +105,25 @@ pub async fn start(audio: AudioTx, id: DeviceId) -> Result<BleServer, String> {
         while let Some(evt) = char_control.next().await {
             if let CharacteristicControlEvent::Notify(writer) = evt {
                 println!("[ble] 구독 시작: {} (MTU {})", writer.device_address(), writer.mtu());
-                set.spawn(listener_loop(writer, data_tx.subscribe(), count.clone()));
+                set.spawn(listener_loop(writer, encoded.subscribe(), codec, count.clone()));
             }
         }
     });
 
-    println!("[ble] 광고 시작: {} (코덱 {} {})", device_id_hex(&id), CODEC.id(), CODEC.name());
-    Ok(BleServer { _adv: adv, _app: app, tasks: vec![encode_task, accept_task], listeners })
-}
-
-async fn encode_loop(mut rx: broadcast::Receiver<Arc<AudioChunk>>, tx: broadcast::Sender<Arc<Vec<u8>>>) {
-    let mut enc = codec::encoder(CODEC);
-    loop {
-        match rx.recv().await {
-            Ok(chunk) => {
-                let data = enc.encode(&chunk);
-                if !data.is_empty() {
-                    let _ = tx.send(Arc::new(data));
-                }
-            }
-            Err(broadcast::error::RecvError::Lagged(_)) => continue,
-            Err(broadcast::error::RecvError::Closed) => break,
-        }
-    }
+    println!("[ble] 광고 시작: {} (코덱 {} {})", device_id_hex(&id), codec.id(), codec.name());
+    Ok(BleServer { _adv: adv, _app: app, accept_task, listeners })
 }
 
 async fn listener_loop(
     mut writer: CharacteristicWriter,
     mut rx: broadcast::Receiver<Arc<Vec<u8>>>,
+    codec: Codec,
     count: Arc<AtomicUsize>,
 ) {
     count.fetch_add(1, Ordering::Relaxed);
     let addr = writer.device_address();
     // ATT 헤더 3바이트 제외, 속성 최대 길이 512
-    let mut packetizer = Packetizer::new(writer.mtu().saturating_sub(3).clamp(20, 512), CODEC);
+    let mut packetizer = Packetizer::new(writer.mtu().saturating_sub(3).clamp(20, 512), codec);
     'outer: loop {
         let data = match rx.recv().await {
             Ok(u) => u,
