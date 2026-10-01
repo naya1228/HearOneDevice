@@ -249,8 +249,8 @@ class AudioService : Service() {
             if (playing) {
                 val kb = bytesThisSecond / 1024.0
                 setStatus(
-                    "PC ${targetId ?: "?"} 재생 중 · MTU $mtu · %.1f KB/s\n버퍼 %dms · 손실 패킷 %d · 끊김 %d회 · 버림 %dms".format(
-                        kb, player.bufferedMs, lost, player.underruns, player.droppedMs
+                    "PC ${targetId ?: "?"} 재생 중 · MTU $mtu · %.1f KB/s\n버퍼 %dms (+재생장치 %dms) · 손실 %d · 끊김 %d회 · 버림 %dms".format(
+                        kb, player.bufferedMs, player.trackMs, lost, player.underruns, player.droppedMs
                     ),
                     updateNotification = false,
                 )
