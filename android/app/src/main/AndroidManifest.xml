@@ -21,7 +21,7 @@
 
     <application
         android:label="HearOneDevice"
-        android:icon="@android:drawable/ic_media_play"
+        android:icon="@mipmap/ic_launcher"
         android:theme="@android:style/Theme.DeviceDefault">
 
         <activity

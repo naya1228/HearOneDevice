@@ -260,7 +260,7 @@ class AudioService : Service() {
             PendingIntent.FLAG_IMMUTABLE
         )
         return Notification.Builder(this, CHANNEL_ID)
-            .setSmallIcon(android.R.drawable.ic_media_play)
+            .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle("HearOneDevice")
             .setContentText(text)
             .setContentIntent(open)
