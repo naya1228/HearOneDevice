@@ -1,45 +1,64 @@
-#[cfg(target_os = "windows")]
-mod capture_win;
-#[cfg(target_os = "linux")]
-mod capture_linux;
+#[cfg(not(any(target_os = "linux", target_os = "windows")))]
+compile_error!("HearOneDevice supports Windows and Linux only.");
 
-#[cfg(target_os = "windows")]
-use capture_win::{capture_sound, stop_capture, CaptureStream};
-#[cfg(target_os = "linux")]
-use capture_linux::{capture_sound, stop_capture, CaptureStream};
+pub mod audio;
+#[cfg_attr(not(target_os = "linux"), path = "ble_unsupported.rs")]
+pub mod ble;
+pub mod capture;
+pub mod codec;
 
-use local_ip_address::local_ip;
 use serde::Serialize;
-use std::sync::Mutex;
+use tauri::State;
+use tokio::sync::Mutex;
+
+// 공유 중일 때만 Some. drop되면 캡처·BLE가 함께 멈춘다 (ble 먼저 drop되도록 순서 유지)
+struct Sharing {
+    ble: ble::BleServer,
+    _capture: capture::Capture,
+}
+
+#[derive(Default)]
+struct AppState(Mutex<Option<Sharing>>);
 
 #[derive(Serialize)]
-pub struct AudioConfig {
-    sample_rate: u32,
-    channels: u16,
+struct Status {
+    running: bool,
+    listeners: usize,
 }
 
 #[tauri::command]
-fn greet(name: &str) -> String {
-    format!("Hello, {}! You've been greeted from Rust!", name)
+async fn start_sharing(state: State<'_, AppState>) -> Result<(), String> {
+    let mut guard = state.0.lock().await;
+    if guard.is_some() {
+        return Ok(());
+    }
+    let audio = audio::channel();
+    let ble = ble::start(audio.clone()).await?;
+    let capture = capture::start(audio)?;
+    *guard = Some(Sharing { ble, _capture: capture });
+    Ok(())
 }
 
 #[tauri::command]
-fn get_ip() -> String {
-    let local_address = local_ip().unwrap();
-    format!("{}", local_address)
+async fn stop_sharing(state: State<'_, AppState>) -> Result<(), String> {
+    state.0.lock().await.take();
+    Ok(())
 }
 
-#[cfg_attr(mobile, tauri::mobile_entry_point)]
+#[tauri::command]
+async fn sharing_status(state: State<'_, AppState>) -> Result<Status, String> {
+    let guard = state.0.lock().await;
+    Ok(Status {
+        running: guard.is_some(),
+        listeners: guard.as_ref().map_or(0, |s| s.ble.listeners()),
+    })
+}
+
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
-        .manage(CaptureStream(Mutex::new(None)))
-        .invoke_handler(tauri::generate_handler![
-            greet,
-            get_ip,
-            capture_sound,
-            stop_capture
-        ])
+        .manage(AppState::default())
+        .invoke_handler(tauri::generate_handler![start_sharing, stop_sharing, sharing_status])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

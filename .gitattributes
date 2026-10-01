@@ -1,0 +1,2 @@
+# Windows 배치 파일은 CRLF 유지
+*.bat text eol=crlf

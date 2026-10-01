@@ -1,45 +1,54 @@
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState } from "react";
 import "./App.css";
 import Button from "./components/Button";
 import { invoke } from "@tauri-apps/api/core";
 
-export function useIP() {
-  const [ip, setIP] = useState<string>("");
-  useEffect(() => {
-    invoke<string>("get_ip").then(setIP);
-  }, []);
-  return ip;
-}
+type Status = { running: boolean; listeners: number };
 
 function App() {
-  const handleConnect = async (e: React.ChangeEvent<HTMLFormElement>) => {};
+  const [status, setStatus] = useState<Status>({ running: false, listeners: 0 });
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
 
-  const handleOpenRoom = async () => {
-    invoke("capture_sound");
+  // 연결된 폰 수를 1초마다 갱신
+  useEffect(() => {
+    const refresh = () => invoke<Status>("sharing_status").then(setStatus);
+    refresh();
+    const id = setInterval(refresh, 1000);
+    return () => clearInterval(id);
+  }, []);
+
+  const toggle = async () => {
+    setError("");
+    setBusy(true);
+    try {
+      await invoke(status.running ? "stop_sharing" : "start_sharing");
+      setStatus(await invoke<Status>("sharing_status"));
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setBusy(false);
+    }
   };
 
   return (
     <main className="flex flex-col bg-[#1F1F1E] items-center p-3 h-dvh">
-      <img className="rounded-md" src="sharing.svg" />
-      <span className="text-white text-4xl font-bold m-2">
-        SharingYourSounds
-      </span>
-      <div className="flex m-2 gap-2 items-center">
-        <p className="text-gray-500">your local ip is {useIP()}</p>
-        <Button type="button" onClick={handleOpenRoom}>
-          Open Host & Wait
-        </Button>
-      </div>
-      <span>or</span>
-      <form className="flex gap-1.5 mb-10" onSubmit={handleConnect}>
-        <input
-          onChange={(e) => set_server(`http://${e.target.value}:6767`)}
-          className="outline rounded-md placeholder:text-gray-500 placeholder:italic"
-          type="text"
-          placeholder={"ex) " + useIP()}
-        ></input>
-        <Button type="submit">Connect</Button>
-      </form>
+      <img className="rounded-md w-32 mt-4" src="sharing.svg" />
+      <span className="text-white text-4xl font-bold m-2">HearOneDevice</span>
+      <p className="text-gray-500 mb-6">PC 소리를 블루투스로 폰에 보냅니다</p>
+
+      <Button type="button" onClick={busy ? undefined : toggle}>
+        {busy ? "..." : status.running ? "공유 중지" : "공유 시작"}
+      </Button>
+
+      {status.running && (
+        <p className="text-[#FD6000] mt-4">
+          {status.listeners > 0
+            ? `폰 ${status.listeners}대 연결됨`
+            : "폰 앱에서 연결을 기다리는 중..."}
+        </p>
+      )}
+      {error && <p className="text-red-400 text-sm mt-4 max-w-sm text-center break-all">{error}</p>}
     </main>
   );
 }
