@@ -49,7 +49,8 @@ class AudioService : Service() {
     }
 
     private val handler = Handler(Looper.getMainLooper())
-    private val player = JitterPlayer()
+    private val decoder = Codecs.active
+    private val player = JitterPlayer(decoder.sampleRate)
     private var gatt: BluetoothGatt? = null
     private var wakeLock: PowerManager.WakeLock? = null
     private var scanning = false
@@ -59,6 +60,7 @@ class AudioService : Service() {
     private var mtu = 23
     private var lastSeq = -1
     private var lost = 0
+    private var wrongCodec = 0 // PC가 다른 코덱으로 보내면 그 번호
     private var bytesThisSecond = 0
     private var playing = false
 
@@ -128,6 +130,7 @@ class AudioService : Service() {
             return
         }
         lastSeq = -1
+        wrongCodec = 0
         val id = targetId
         setStatus(if (id != null) "PC $id 찾는 중..." else "PC 찾는 중...")
         val filter = ScanFilter.Builder().setServiceUuid(ParcelUuid(Protocol.SERVICE_UUID)).apply {
@@ -233,23 +236,29 @@ class AudioService : Service() {
 
     private fun onAudio(data: ByteArray) {
         val packet = Protocol.parse(data) ?: return
+        if (packet.codec != decoder.id) {
+            wrongCodec = packet.codec
+            return
+        }
         if (lastSeq >= 0) {
             val gap = (packet.seq - lastSeq - 1) and 0xFFFF
             if (gap in 1..1000) lost += gap
         }
         lastSeq = packet.seq
         bytesThisSecond += data.size
-        player.push(packet.pcm)
+        player.push(decoder.decode(packet.data, Protocol.HEADER_LEN))
     }
 
     // ---------- 상태 표시 ----------
 
     private val statsTick = object : Runnable {
         override fun run() {
-            if (playing) {
+            if (wrongCodec != 0) {
+                setStatus("코덱 불일치: PC ${wrongCodec}번, 앱 ${decoder.id}번 (docs/CODECS.md)", updateNotification = false)
+            } else if (playing) {
                 val kb = bytesThisSecond / 1024.0
                 setStatus(
-                    "PC ${targetId ?: "?"} 재생 중 · MTU $mtu · %.1f KB/s\n버퍼 %dms (+재생장치 %dms) · 손실 %d · 끊김 %d회 · 버림 %dms".format(
+                    "PC ${targetId ?: "?"} 재생 중 · 코덱 ${decoder.id} ${decoder.name} · MTU $mtu · %.1f KB/s\n버퍼 %dms (+재생장치 %dms) · 손실 %d · 끊김 %d회 · 버림 %dms".format(
                         kb, player.bufferedMs, player.trackMs, lost, player.underruns, player.droppedMs
                     ),
                     updateNotification = false,

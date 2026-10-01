@@ -10,15 +10,23 @@ class ProtocolTest {
     fun parsesHeaderAndDecodesUlaw() {
         val p = Protocol.parse(byteArrayOf(1, 1, 0x34, 0x12, 0xFF.toByte(), 0x80.toByte(), 0x00))!!
         assertEquals(0x1234, p.seq)
-        assertEquals(0, p.pcm[0].toInt())        // 0xFF = 무음
-        assertEquals(32124, p.pcm[1].toInt())    // 0x80 = 최대 +
-        assertEquals(-32124, p.pcm[2].toInt())   // 0x00 = 최대 -
+        assertEquals(Codecs.ULAW_16K_MONO, p.codec)
+        val pcm = Codecs.decoder(p.codec)!!.decode(p.data, Protocol.HEADER_LEN)
+        assertEquals(0, pcm[0].toInt())        // 0xFF = 무음
+        assertEquals(32124, pcm[1].toInt())    // 0x80 = 최대 +
+        assertEquals(-32124, pcm[2].toInt())   // 0x00 = 최대 -
     }
 
     @Test
     fun rejectsOtherVersion() {
         assertNull(Protocol.parse(byteArrayOf(2, 1, 0, 0, 0)))
         assertNull(Protocol.parse(byteArrayOf(1, 1, 0)))
+    }
+
+    @Test
+    fun unknownCodecHasNoDecoder() {
+        assertEquals(99, Protocol.parse(byteArrayOf(1, 99, 0, 0, 0))!!.codec)
+        assertNull(Codecs.decoder(99))
     }
 
     @Test

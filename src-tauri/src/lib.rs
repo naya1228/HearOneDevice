@@ -7,6 +7,9 @@ pub mod ble;
 pub mod capture;
 pub mod codec;
 
+/// 보낼 코덱. 번호·종류는 docs/CODECS.md. 앱 쪽(Codecs.kt 의 ACTIVE)도 같은 번호로 맞출 것.
+pub const CODEC: codec::Codec = codec::Codec::Ulaw16kMono;
+
 use serde::Serialize;
 use std::hash::{BuildHasher, Hasher};
 use tauri::{Manager, State};

@@ -10,8 +10,7 @@ import android.media.AudioTrack
  * - 1초 동안의 최저 수위가 target 보다 높으면 그만큼 버림 (지연 누적·시계 차이 보정)
  * - max 를 넘게 쌓이면 즉시 오래된 조각을 버림 (몰려온 데이터 대비)
  */
-class JitterPlayer {
-    private val rate = Protocol.SAMPLE_RATE
+class JitterPlayer(private val rate: Int) {
     private val prebuffer = rate * 60 / 1000 // 60ms
     private val target = rate * 80 / 1000    // 80ms
     private val max = rate * 200 / 1000      // 200ms
