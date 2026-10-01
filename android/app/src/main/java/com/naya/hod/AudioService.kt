@@ -37,6 +37,8 @@ class AudioService : Service() {
     companion object {
         const val ACTION_START = "com.naya.hod.START"
         const val ACTION_STOP = "com.naya.hod.STOP"
+        /** 연결할 PC 번호 (16진수 8자리). 없으면 처음 발견한 PC */
+        const val EXTRA_ID = "id"
         private const val CHANNEL_ID = "playback"
         private const val NOTIFICATION_ID = 1
 
@@ -51,6 +53,7 @@ class AudioService : Service() {
     private var gatt: BluetoothGatt? = null
     private var wakeLock: PowerManager.WakeLock? = null
     private var scanning = false
+    private var targetId: String? = null
 
     // 통계
     private var mtu = 23
@@ -65,7 +68,7 @@ class AudioService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
-            ACTION_START -> start()
+            ACTION_START -> start(intent.getStringExtra(EXTRA_ID))
             ACTION_STOP -> stopAll()
         }
         return START_NOT_STICKY
@@ -76,8 +79,18 @@ class AudioService : Service() {
         super.onDestroy()
     }
 
-    private fun start() {
-        if (isRunning) return
+    private fun start(id: String?) {
+        if (isRunning) {
+            // 재생 중에 다른 PC의 QR을 찍으면 그 PC로 갈아탐
+            if (id != null && id != targetId) {
+                targetId = id
+                stopScan()
+                gatt?.disconnect() // 끊김 처리(onConnectionStateChange)에서 새 번호로 다시 찾음
+                if (gatt == null) scan()
+            }
+            return
+        }
+        targetId = id
         isRunning = true
         startForegroundCompat(notification("연결 준비 중"))
         wakeLock = getSystemService(PowerManager::class.java)
@@ -115,8 +128,12 @@ class AudioService : Service() {
             return
         }
         lastSeq = -1
-        setStatus("PC 찾는 중...")
-        val filter = ScanFilter.Builder().setServiceUuid(ParcelUuid(Protocol.SERVICE_UUID)).build()
+        val id = targetId
+        setStatus(if (id != null) "PC $id 찾는 중..." else "PC 찾는 중...")
+        val filter = ScanFilter.Builder().setServiceUuid(ParcelUuid(Protocol.SERVICE_UUID)).apply {
+            // QR로 받은 번호를 광고에 싣고 있는 PC만
+            if (id != null) setManufacturerData(Protocol.MANUFACTURER_ID, Protocol.idBytes(id))
+        }.build()
         val settings = ScanSettings.Builder().setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY).build()
         scanner.startScan(listOf(filter), settings, scanCallback)
         scanning = true
@@ -132,7 +149,12 @@ class AudioService : Service() {
         override fun onScanResult(callbackType: Int, result: ScanResult) {
             if (!scanning) return
             stopScan()
-            setStatus("PC 발견, 연결 중...")
+            // 광고에 실린 PC 번호를 기억 → 다음엔 "듣기 시작"만 눌러도 이 PC로
+            result.scanRecord?.getManufacturerSpecificData(Protocol.MANUFACTURER_ID)
+                ?.takeIf { it.size == 4 }
+                ?.joinToString("") { "%02x".format(it) }
+                ?.let { targetId = it; MainActivity.saveLastPc(this@AudioService, it) }
+            setStatus("PC ${targetId ?: ""} 발견, 연결 중...")
             gatt = result.device.connectGatt(
                 this@AudioService, false, gattCallback, BluetoothDevice.TRANSPORT_LE
             )
@@ -192,7 +214,7 @@ class AudioService : Service() {
 
         override fun onDescriptorWrite(g: BluetoothGatt, d: BluetoothGattDescriptor, status: Int) {
             playing = status == BluetoothGatt.GATT_SUCCESS
-            setStatus(if (playing) "재생 시작 (MTU $mtu)" else "구독 실패 (코드 $status)")
+            setStatus(if (playing) "PC ${targetId ?: ""} 연결됨 (MTU $mtu)" else "구독 실패 (코드 $status)")
         }
 
         // ---------- 3. 소리 받기 ----------
@@ -227,7 +249,7 @@ class AudioService : Service() {
             if (playing) {
                 val kb = bytesThisSecond / 1024.0
                 setStatus(
-                    "재생 중 · MTU $mtu · %.1f KB/s\n버퍼 %dms · 손실 패킷 %d · 끊김 %d회 · 버림 %dms".format(
+                    "PC ${targetId ?: "?"} 재생 중 · MTU $mtu · %.1f KB/s\n버퍼 %dms · 손실 패킷 %d · 끊김 %d회 · 버림 %dms".format(
                         kb, player.bufferedMs, lost, player.underruns, player.droppedMs
                     ),
                     updateNotification = false,

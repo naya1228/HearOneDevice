@@ -10,6 +10,17 @@ object Protocol {
     // 알림 구독을 켜는 표준 디스크립터
     val CCCD_UUID: UUID = UUID.fromString("00002902-0000-1000-8000-00805f9b34fb")
 
+    // PC 광고의 제조사 데이터 = PC 고유 번호 4바이트 (ble.rs 의 MANUFACTURER_ID)
+    const val MANUFACTURER_ID = 0xFFFF
+
+    /** QR 링크 hearone://connect?id=1a2b3c4d 에서 번호(16진수 8자리)를 꺼냄 */
+    fun parseLink(link: String?): String? {
+        val m = Regex("""^hearone://connect\?id=([0-9a-fA-F]{8})$""").find(link?.trim() ?: return null)
+        return m?.groupValues?.get(1)?.lowercase()
+    }
+
+    fun idBytes(hex: String): ByteArray = ByteArray(4) { hex.substring(it * 2, it * 2 + 2).toInt(16).toByte() }
+
     const val VERSION = 1
     const val CODEC_ULAW_16K_MONO = 1
     const val HEADER_LEN = 4

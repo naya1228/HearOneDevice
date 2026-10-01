@@ -23,8 +23,16 @@ use tokio::task::JoinSet;
 pub const SERVICE_UUID: Uuid = Uuid::from_u128(0x5e7a0001_3c1b_4f6e_9d2a_7b1c0e5a9f10);
 pub const AUDIO_CHAR_UUID: Uuid = Uuid::from_u128(0x5e7a0002_3c1b_4f6e_9d2a_7b1c0e5a9f10);
 
-// 광고 패킷 31바이트 제한: flags(3) + 128bit UUID(18) + 이름(2+len) → 이름은 8자 이하
-const ADV_NAME: &str = "HearOne";
+// 광고에 PC 고유 번호를 실어 폰이 QR로 받은 번호와 맞춰 찾는다 (Protocol.kt 와 같아야 함)
+// 광고 31바이트 제한: flags(3) + 128bit UUID(18) + 제조사 데이터(4+4) = 29 → 이름은 못 넣음
+pub const MANUFACTURER_ID: u16 = 0xFFFF; // 테스트/미등록용 예약 ID
+
+/// PC 고유 번호 4바이트. QR에는 16진수 8자리로 들어간다.
+pub type DeviceId = [u8; 4];
+
+pub fn device_id_hex(id: &DeviceId) -> String {
+    id.iter().map(|b| format!("{b:02x}")).collect()
+}
 
 /// drop되면 광고·GATT 등록이 해제되고 모든 전송이 멈춘다.
 pub struct BleServer {
@@ -48,7 +56,7 @@ impl Drop for BleServer {
     }
 }
 
-pub async fn start(audio: AudioTx) -> Result<BleServer, String> {
+pub async fn start(audio: AudioTx, id: DeviceId) -> Result<BleServer, String> {
     let session = bluer::Session::new().await.map_err(|e| format!("BlueZ 연결 실패: {e}"))?;
     let adapter = session
         .default_adapter()
@@ -60,8 +68,8 @@ pub async fn start(audio: AudioTx) -> Result<BleServer, String> {
         .advertise(Advertisement {
             advertisement_type: bluer::adv::Type::Peripheral,
             service_uuids: [SERVICE_UUID].into_iter().collect(),
+            manufacturer_data: [(MANUFACTURER_ID, id.to_vec())].into_iter().collect(),
             discoverable: Some(true),
-            local_name: Some(ADV_NAME.into()),
             ..Default::default()
         })
         .await
@@ -108,7 +116,7 @@ pub async fn start(audio: AudioTx) -> Result<BleServer, String> {
         }
     });
 
-    println!("[ble] 광고 시작: {ADV_NAME}");
+    println!("[ble] 광고 시작: {}", device_id_hex(&id));
     Ok(BleServer { _adv: adv, _app: app, tasks: vec![encode_task, accept_task], listeners })
 }
 

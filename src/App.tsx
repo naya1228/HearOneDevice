@@ -2,11 +2,12 @@ import { useEffect, useState } from "react";
 import "./App.css";
 import Button from "./components/Button";
 import { invoke } from "@tauri-apps/api/core";
+import QRCode from "react-qr-code";
 
-type Status = { running: boolean; listeners: number };
+type Status = { running: boolean; listeners: number; link: string };
 
 function App() {
-  const [status, setStatus] = useState<Status>({ running: false, listeners: 0 });
+  const [status, setStatus] = useState<Status>({ running: false, listeners: 0, link: "" });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
@@ -42,11 +43,15 @@ function App() {
       </Button>
 
       {status.running && (
-        <p className="text-[#FD6000] mt-4">
-          {status.listeners > 0
-            ? `폰 ${status.listeners}대 연결됨`
-            : "폰 앱에서 연결을 기다리는 중..."}
-        </p>
+        <div className="flex flex-col items-center gap-2 mt-6">
+          <div className="bg-white p-3 rounded-md">
+            <QRCode value={status.link} size={160} />
+          </div>
+          <p className="text-gray-400 text-sm">폰 앱이나 카메라로 QR을 찍으면 연결됩니다</p>
+          <p className="text-[#FD6000]">
+            {status.listeners > 0 ? `폰 ${status.listeners}대 연결됨` : "연결 기다리는 중..."}
+          </p>
+        </div>
       )}
       {error && <p className="text-red-400 text-sm mt-4 max-w-sm text-center break-all">{error}</p>}
     </main>

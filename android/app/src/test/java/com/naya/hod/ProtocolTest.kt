@@ -20,4 +20,13 @@ class ProtocolTest {
         assertNull(Protocol.parse(byteArrayOf(2, 1, 0, 0, 0)))
         assertNull(Protocol.parse(byteArrayOf(1, 1, 0)))
     }
+
+    @Test
+    fun parsesQrLink() {
+        assertEquals("00c0ffee", Protocol.parseLink("hearone://connect?id=00C0FFEE"))
+        assertNull(Protocol.parseLink("https://example.com"))
+        assertNull(Protocol.parseLink("hearone://connect?id=123"))
+        val b = Protocol.idBytes("00c0ffee")
+        assertEquals(listOf(0x00, 0xc0, 0xff, 0xee), b.map { it.toInt() and 0xFF })
+    }
 }
