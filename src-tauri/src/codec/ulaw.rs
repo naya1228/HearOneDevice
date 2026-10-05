@@ -10,17 +10,19 @@ pub struct UlawEncoder {
 
 impl UlawEncoder {
     pub fn new(rate: u32) -> Self {
-        Self { resampler: Resampler::new(rate) }
+        Self { resampler: Resampler::new(rate, 1) }
     }
 }
 
 impl Encoder for UlawEncoder {
-    fn encode(&mut self, chunk: &AudioChunk) -> Vec<u8> {
-        self.resampler
+    fn encode(&mut self, chunk: &AudioChunk) -> Vec<Vec<u8>> {
+        let data = self
+            .resampler
             .process(chunk)
             .into_iter()
             .map(|s| linear_to_ulaw((s * 32767.0) as i16))
-            .collect()
+            .collect();
+        vec![data]
     }
 }
 
@@ -61,6 +63,6 @@ mod tests {
     fn one_byte_per_sample() {
         let mut e = UlawEncoder::new(16000);
         let chunk = AudioChunk { sample_rate: 48000, channels: 2, samples: vec![0.0; 960 * 2] };
-        assert_eq!(e.encode(&chunk), vec![0xFF; 320]);
+        assert_eq!(e.encode(&chunk), vec![vec![0xFF; 320]]);
     }
 }

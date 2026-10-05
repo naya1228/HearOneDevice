@@ -10,10 +10,12 @@ import android.media.AudioTrack
  * - 1초 동안의 최저 수위가 target 보다 높으면 그만큼 버림 (지연 누적·시계 차이 보정)
  * - max 를 넘게 쌓이면 즉시 오래된 조각을 버림 (몰려온 데이터 대비)
  */
-class JitterPlayer(private val rate: Int) {
-    private val prebuffer = rate * 60 / 1000 // 60ms
-    private val target = rate * 80 / 1000    // 80ms
-    private val max = rate * 200 / 1000      // 200ms
+class JitterPlayer(private val rate: Int, private val channels: Int = 1) {
+    // 아래 수치와 queued는 샘플 수 (스테레오면 L·R 각각 하나씩 = 프레임당 2)
+    private val perMs = rate * channels / 1000
+    private val prebuffer = perMs * 60  // 60ms
+    private val target = perMs * 80     // 80ms
+    private val max = perMs * 200       // 200ms
 
     private val lock = Object()
     private val queue = ArrayDeque<ShortArray>()
@@ -25,7 +27,7 @@ class JitterPlayer(private val rate: Int) {
     // 상태 표시용 통계
     @Volatile var underruns = 0; private set
     @Volatile var droppedMs = 0; private set
-    val bufferedMs: Int get() = synchronized(lock) { queued * 1000 / rate }
+    val bufferedMs: Int get() = synchronized(lock) { queued / perMs }
     /** AudioTrack 내부 버퍼 (지터 버퍼 뒤에 추가로 붙는 지연) */
     @Volatile var trackMs = 0; private set
 
@@ -37,7 +39,7 @@ class JitterPlayer(private val rate: Int) {
             while (queued > max && queue.size > 1) {
                 val old = queue.removeFirst()
                 queued -= old.size
-                droppedMs += old.size * 1000 / rate
+                droppedMs += old.size / perMs
             }
             lock.notifyAll()
         }
@@ -48,9 +50,8 @@ class JitterPlayer(private val rate: Int) {
         running = true
         underruns = 0
         droppedMs = 0
-        val minBuf = AudioTrack.getMinBufferSize(
-            rate, AudioFormat.CHANNEL_OUT_MONO, AudioFormat.ENCODING_PCM_16BIT
-        )
+        val mask = if (channels == 2) AudioFormat.CHANNEL_OUT_STEREO else AudioFormat.CHANNEL_OUT_MONO
+        val minBuf = AudioTrack.getMinBufferSize(rate, mask, AudioFormat.ENCODING_PCM_16BIT)
         val track = AudioTrack.Builder()
             .setAudioAttributes(
                 AudioAttributes.Builder()
@@ -62,7 +63,7 @@ class JitterPlayer(private val rate: Int) {
                 AudioFormat.Builder()
                     .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
                     .setSampleRate(rate)
-                    .setChannelMask(AudioFormat.CHANNEL_OUT_MONO)
+                    .setChannelMask(mask)
                     .build()
             )
             .setBufferSizeInBytes(minBuf)
@@ -93,7 +94,8 @@ class JitterPlayer(private val rate: Int) {
                             primed = true
                             windowMin = minOf(windowMin, queued)
                             if (System.nanoTime() - windowStart > 1_000_000_000L) {
-                                if (windowMin > target) trim(windowMin - target)
+                                // 스테레오면 L·R 짝이 안 깨지게 채널 수의 배수로
+                                if (windowMin > target) trim((windowMin - target) / channels * channels)
                                 windowMin = Int.MAX_VALUE
                                 windowStart = System.nanoTime()
                             }
@@ -122,7 +124,7 @@ class JitterPlayer(private val rate: Int) {
                 left = 0
             }
         }
-        droppedMs += (n - left) * 1000 / rate
+        droppedMs += (n - left) / perMs
     }
 
     fun stop() {

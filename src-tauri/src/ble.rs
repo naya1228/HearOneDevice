@@ -1,8 +1,8 @@
 // BLE 송신 (Linux/BlueZ). PC가 광고(peripheral)하고 폰 앱이 찾아와 구독(central)한다.
-// 인코딩된 데이터(lib.rs 의 start_encoding)를 받아, 구독한 폰마다 notify로 패킷을 계속 밀어 보낸다.
+// 인코딩된 데이터(encoding.rs)를 받아, 구독한 폰마다 notify로 패킷을 계속 밀어 보낸다.
 
-use crate::codec::{Codec, Packetizer};
-use crate::EncodedTx;
+use crate::codec::packet::Packetizer;
+use crate::encoding::{Encoded, EncodedTx};
 use bluer::{
     adv::{Advertisement, AdvertisementHandle},
     gatt::local::{
@@ -54,7 +54,7 @@ impl Drop for BleServer {
     }
 }
 
-pub async fn start(encoded: EncodedTx, codec: Codec, id: DeviceId) -> Result<BleServer, String> {
+pub async fn start(encoded: EncodedTx, id: DeviceId) -> Result<BleServer, String> {
     let session = bluer::Session::new().await.map_err(|e| format!("BlueZ 연결 실패: {e}"))?;
     let adapter = session
         .default_adapter()
@@ -105,27 +105,26 @@ pub async fn start(encoded: EncodedTx, codec: Codec, id: DeviceId) -> Result<Ble
         while let Some(evt) = char_control.next().await {
             if let CharacteristicControlEvent::Notify(writer) = evt {
                 println!("[ble] 구독 시작: {} (MTU {})", writer.device_address(), writer.mtu());
-                set.spawn(listener_loop(writer, encoded.subscribe(), codec, count.clone()));
+                set.spawn(listener_loop(writer, encoded.subscribe(), count.clone()));
             }
         }
     });
 
-    println!("[ble] 광고 시작: {} (코덱 {} {})", device_id_hex(&id), codec.id(), codec.name());
+    println!("[ble] 광고 시작: {}", device_id_hex(&id));
     Ok(BleServer { _adv: adv, _app: app, accept_task, listeners })
 }
 
 async fn listener_loop(
     mut writer: CharacteristicWriter,
-    mut rx: broadcast::Receiver<Arc<Vec<u8>>>,
-    codec: Codec,
+    mut rx: broadcast::Receiver<Arc<Encoded>>,
     count: Arc<AtomicUsize>,
 ) {
     count.fetch_add(1, Ordering::Relaxed);
     let addr = writer.device_address();
     // ATT 헤더 3바이트 제외, 속성 최대 길이 512
-    let mut packetizer = Packetizer::new(writer.mtu().saturating_sub(3).clamp(20, 512), codec);
+    let mut packetizer = Packetizer::new(writer.mtu().saturating_sub(3).clamp(20, 512));
     'outer: loop {
-        let data = match rx.recv().await {
+        let enc = match rx.recv().await {
             Ok(u) => u,
             Err(broadcast::error::RecvError::Lagged(n)) => {
                 println!("[ble] {addr} 전송 밀림, 조각 {n}개 건너뜀");
@@ -133,7 +132,7 @@ async fn listener_loop(
             }
             Err(broadcast::error::RecvError::Closed) => break,
         };
-        for packet in packetizer.packets(&data) {
+        for packet in packetizer.packets(enc.codec, &enc.data) {
             if let Err(e) = writer.write_all(&packet).await {
                 println!("[ble] {addr} 연결 끊김: {e}");
                 break 'outer;

@@ -4,12 +4,18 @@ import Button from "./components/Button";
 import { invoke } from "@tauri-apps/api/core";
 import QRCode from "react-qr-code";
 
-type Status = { running: boolean; listeners: number; link: string };
+type Status = { running: boolean; listeners: number; link: string; codec: number };
+type CodecInfo = { id: number; name: string };
 
 function App() {
-  const [status, setStatus] = useState<Status>({ running: false, listeners: 0, link: "" });
+  const [status, setStatus] = useState<Status>({ running: false, listeners: 0, link: "", codec: 0 });
+  const [codecs, setCodecs] = useState<CodecInfo[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    invoke<CodecInfo[]>("codecs").then(setCodecs);
+  }, []);
 
   // 연결된 폰 수를 1초마다 갱신
   useEffect(() => {
@@ -32,6 +38,17 @@ function App() {
     }
   };
 
+  // 공유 중에 바꿔도 바로 적용됨. 폰은 받은 패킷의 코덱 번호를 보고 따라감
+  const changeCodec = async (id: number) => {
+    setError("");
+    try {
+      await invoke("set_codec", { id });
+      setStatus(await invoke<Status>("sharing_status"));
+    } catch (e) {
+      setError(String(e));
+    }
+  };
+
   return (
     <main className="flex flex-col bg-[#1F1F1E] items-center p-3 h-dvh">
       <img className="rounded-md w-32 mt-4" src="sharing.svg" />
@@ -41,6 +58,21 @@ function App() {
       <Button type="button" onClick={busy ? undefined : toggle}>
         {busy ? "..." : status.running ? "공유 중지" : "공유 시작"}
       </Button>
+
+      <label className="flex items-center gap-2 mt-4 text-gray-400 text-sm">
+        코덱
+        <select
+          className="bg-[#2A2A29] text-white rounded-md px-2 py-1"
+          value={status.codec}
+          onChange={(e) => changeCodec(Number(e.target.value))}
+        >
+          {codecs.map((c) => (
+            <option key={c.id} value={c.id}>
+              {c.id}. {c.name}
+            </option>
+          ))}
+        </select>
+      </label>
 
       {status.running && (
         <div className="flex flex-col items-center gap-2 mt-6">

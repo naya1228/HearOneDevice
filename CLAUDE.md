@@ -8,20 +8,33 @@ PC 시스템 소리 → 블루투스(BLE) → 안드로이드 앱에서 재생. 
 
 ## 구조
 - `src-tauri/src/capture/` — 소리 캡처 (linux: PulseAudio monitor, windows: cpal 루프백)
-- `src-tauri/src/codec/` — 코덱 번호(`Codec`)·패킷 헤더 `[버전|코덱|순번 u16 LE|데이터]` + 코덱별 파일(`ulaw.rs`). 쓸 코덱(`CODEC`)과 인코딩 루프(`start_encoding`)는 `lib.rs`
-- **코덱 표·바꾸는 법: `docs/CODECS.md`** (앱은 `Codecs.kt`의 `ACTIVE`, 양쪽 번호 같아야 함)
+- `src-tauri/src/codec/` — 코덱 번호(`Codec`) + 코덱별 파일(`ulaw.rs`, `adpcm.rs`, `opus.rs`). 패킷 헤더 `[버전|코덱|순번 u16 LE|데이터]`·자르기는 `codec/packet.rs`
+- `src-tauri/src/encoding.rs` — 인코딩 루프. 코덱은 PC 앱 화면에서 실행 중에 고름 (`set_codec` → watch 통로)
+- **코덱 표·바꾸는 법: `docs/CODECS.md`** (앱 `Codecs.kt`는 헤더 번호로 디코더 자동 선택, 양쪽 번호 같아야 함)
 - `src-tauri/src/ble.rs` — BLE 송신 (Linux/BlueZ). 인코딩된 바이트만 받아 나름(코덱 모름). Windows는 `ble_unsupported.rs` (미구현)
 - `src-tauri/examples/send.rs` — UI 없이 송신 테스트: `cargo run --example send`
-- `android/` — 수신 앱 (Kotlin, 외부 라이브러리 없음). `AudioService`(포그라운드 서비스)가 BLE 수신+재생
+- `android/` — 수신 앱 (Kotlin. 소리 처리엔 외부 라이브러리 없음, Opus는 내장 MediaCodec. QR 스캔만 ML Kit). `AudioService`(포그라운드 서비스)가 BLE 수신+재생
 - **UUID·패킷 형식은 `codec/`·`ble.rs` ↔ `Protocol.kt`·`Codecs.kt` 양쪽이 같아야 함**
 
 ## 확정된 결정
 - 브라우저(Web Bluetooth)는 iOS 미지원·화면 꺼짐 보장 불가 → 폰 쪽은 네이티브 앱.
-- BLE 대역폭 때문에 μ-law 16kHz 모노(16KB/s)로 시작. 음질 개선은 L2CAP + Opus 후보.
+- 처음엔 BLE 대역폭을 걱정해 μ-law 16kHz 모노(16KB/s)로 시작했으나, 2026-10-05 S25 실측으로 49KB/s(ADPCM 48k 스테레오)까지 손실 0 확인.
 - 안드로이드 빌드는 RealHunter와 같은 AGP 9.4.0 / Gradle 9.6.0 (Kotlin 내장, 플러그인 불필요).
-- 2026-10-01 Galaxy S25(Android 16)에서 실기기 확인: MTU 517, 손실 0, 화면 꺼짐 60초 재생 유지. 버퍼가 260ms까지 쌓여 지연 개선 여지 있음.
-- 코덱 실험을 쉽게 하려고 코덱에 번호를 매기고 양쪽(PC `CODEC`, 앱 `ACTIVE`)을 상수로 고르게 함. 자동 감지 대신 고정+불일치 표시로 한 건 테스트 중 어느 코덱이 도는지 확실히 보려고.
-- 인코딩 루프를 ble.rs → lib.rs로 옮김: 인코딩은 전송 방식과 무관하고, 윈도우 BLE 구현 때 루프를 복사하지 않으려고.
+- 2026-10-01 Galaxy S25(Android 16)에서 실기기 확인: MTU 517, 손실 0, 화면 꺼짐 60초 재생 유지. 당시 버퍼가 260ms까지 쌓였음 (69dd0bf에서 지터 버퍼 목표 수위로 줄임).
+- 코덱 실험을 쉽게 하려고 코덱에 번호를 매김 (번호는 패킷 헤더에 들어감).
+- 인코딩 루프를 ble.rs → lib.rs로 옮김: 인코딩은 전송 방식과 무관해서.
+- 코덱을 고정 상수 → 실행 중 선택(PC 화면) + 앱은 헤더 번호로 자동 전환으로 바꿈: μ-law/Opus를 다시 빌드 없이 바로 바꿔 들어보려고. "어느 코덱인지 보이게"는 앱 상태 표시로 유지. 같이 lib.rs의 인코딩 루프는 encoding.rs로 분리(한 파일 한 기능).
+- 지금은 Linux PC 기준으로 완성한다. 윈도우를 설계 근거로 끌어오지 말 것 (사용자 요청).
+- 소리 데이터는 암호화 없음(근처 누구나 구독 가능). 사용자 판단으로 지금은 불필요.
+- 2026-10-05 S25: 앱 "끊김" 250회인데 귀로는 끊김 없음. 이 숫자는 지터 버퍼가 빈 횟수일 뿐(뒤에 AudioTrack 40ms가 받쳐줌), 실제 스피커 끊김 아님. 지터 버퍼는 모든 코덱에서 0~80ms를 오감.
+- 기본 코덱을 Opus 128k(4번)로: 49KB/s까지 손실 0이 실측돼 대역폭 여유가 있으므로, 측정 안 된 64k의 이점보다 확실한 음질을 택함. 사용자 체감상 Opus가 ADPCM보다 지연도 짧았음(미측정).
+
+## 코드 규칙 (모듈화 유지)
+- **한 파일 = 한 가지 기능.** 새 기능은 기존 파일에 끼워 넣지 말고 파일을 따로 만든다.
+- 계층끼리 서로 모르게: 캡처 ↔ 코덱 ↔ 전송(BLE)은 바이트/샘플만 주고받는다. (예: `ble.rs`는 코덱을 모름)
+- 플랫폼별 구현은 같은 인터페이스의 파일로 나눈다 (`capture/linux`·`windows`, `ble.rs`·`ble_unsupported.rs` 방식).
+- 파일이 두 가지 일을 하기 시작하면 그때 쪼갠다.
 
 ## 기록 규칙
 - "무엇이/언제" → Stop hook이 자동 기록. "왜" → 위 "확정된 결정"에 한 줄 append.
+- 사실과 결정만 적는다. "나중에/후보/필요해지면" 같은 정하지 않은 미래 작업은 적지 않는다 (다음 세션이 할 일로 오해함).

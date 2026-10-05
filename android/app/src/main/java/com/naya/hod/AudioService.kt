@@ -25,6 +25,7 @@ import android.os.IBinder
 import android.os.Looper
 import android.os.ParcelUuid
 import android.os.PowerManager
+import android.util.Log
 
 /**
  * PC를 찾아 BLE로 연결하고, 받은 소리를 JitterPlayer로 재생한다.
@@ -49,8 +50,10 @@ class AudioService : Service() {
     }
 
     private val handler = Handler(Looper.getMainLooper())
-    private val decoder = Codecs.active
-    private val player = JitterPlayer(decoder.sampleRate)
+    // PC가 보내는 코덱에 맞춰 바뀐다 (switchCodec). 첫 패킷이 오기 전엔 null
+    private val playLock = Any()
+    @Volatile private var decoder: Codecs.Decoder? = null
+    @Volatile private var player: JitterPlayer? = null
     private var gatt: BluetoothGatt? = null
     private var wakeLock: PowerManager.WakeLock? = null
     private var scanning = false
@@ -60,7 +63,7 @@ class AudioService : Service() {
     private var mtu = 23
     private var lastSeq = -1
     private var lost = 0
-    private var wrongCodec = 0 // PC가 다른 코덱으로 보내면 그 번호
+    private var unknownCodec = 0 // PC가 이 앱이 모르는 코덱으로 보내면 그 번호
     private var bytesThisSecond = 0
     private var playing = false
 
@@ -98,7 +101,6 @@ class AudioService : Service() {
         wakeLock = getSystemService(PowerManager::class.java)
             .newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "HearOneDevice:playback")
             .apply { acquire() }
-        player.start()
         handler.post(statsTick)
         scan()
     }
@@ -110,7 +112,12 @@ class AudioService : Service() {
         stopScan()
         gatt?.let { it.disconnect(); it.close() }
         gatt = null
-        player.stop()
+        synchronized(playLock) {
+            player?.stop()
+            player = null
+            decoder?.close()
+            decoder = null
+        }
         wakeLock?.let { if (it.isHeld) it.release() }
         wakeLock = null
         playing = false
@@ -130,7 +137,7 @@ class AudioService : Service() {
             return
         }
         lastSeq = -1
-        wrongCodec = 0
+        unknownCodec = 0
         val id = targetId
         setStatus(if (id != null) "PC $id 찾는 중..." else "PC 찾는 중...")
         val filter = ScanFilter.Builder().setServiceUuid(ParcelUuid(Protocol.SERVICE_UUID)).apply {
@@ -236,30 +243,51 @@ class AudioService : Service() {
 
     private fun onAudio(data: ByteArray) {
         val packet = Protocol.parse(data) ?: return
-        if (packet.codec != decoder.id) {
-            wrongCodec = packet.codec
-            return
-        }
         if (lastSeq >= 0) {
             val gap = (packet.seq - lastSeq - 1) and 0xFFFF
             if (gap in 1..1000) lost += gap
         }
         lastSeq = packet.seq
         bytesThisSecond += data.size
-        player.push(decoder.decode(packet.data, Protocol.HEADER_LEN))
+        synchronized(playLock) {
+            if (!isRunning) return
+            val dec = decoder?.takeIf { it.id == packet.codec } ?: switchCodec(packet.codec) ?: return
+            player?.push(dec.decode(packet.data, Protocol.HEADER_LEN))
+        }
+    }
+
+    // PC에서 코덱을 바꾸면 패킷 헤더의 번호가 바뀐다 → 디코더를 바꾸고, 샘플레이트·채널이 다르면 재생기도 새로.
+    // playLock 안에서 호출
+    private fun switchCodec(id: Int): Codecs.Decoder? {
+        // 디코더를 못 여는 경우(기기에 Opus 디코더가 없음 등)도 "모르는 코덱"으로 표시. 원인은 logcat
+        val dec = runCatching { Codecs.decoder(id) }.onFailure { Log.e("HOD", "디코더 $id 열기 실패", it) }.getOrNull()
+        if (dec == null) {
+            unknownCodec = id
+            return null
+        }
+        unknownCodec = 0
+        if (dec.sampleRate != decoder?.sampleRate || dec.channels != decoder?.channels) {
+            player?.stop()
+            player = JitterPlayer(dec.sampleRate, dec.channels).also { it.start() }
+        }
+        decoder?.close()
+        decoder = dec
+        return dec
     }
 
     // ---------- 상태 표시 ----------
 
     private val statsTick = object : Runnable {
         override fun run() {
-            if (wrongCodec != 0) {
-                setStatus("코덱 불일치: PC ${wrongCodec}번, 앱 ${decoder.id}번 (docs/CODECS.md)", updateNotification = false)
-            } else if (playing) {
+            val dec = decoder
+            val p = player
+            if (unknownCodec != 0) {
+                setStatus("PC가 보낸 코덱 ${unknownCodec}번을 이 앱이 모름. 앱 업데이트 필요 (docs/CODECS.md)", updateNotification = false)
+            } else if (playing && dec != null && p != null) {
                 val kb = bytesThisSecond / 1024.0
                 setStatus(
-                    "PC ${targetId ?: "?"} 재생 중 · 코덱 ${decoder.id} ${decoder.name} · MTU $mtu · %.1f KB/s\n버퍼 %dms (+재생장치 %dms) · 손실 %d · 끊김 %d회 · 버림 %dms".format(
-                        kb, player.bufferedMs, player.trackMs, lost, player.underruns, player.droppedMs
+                    "PC ${targetId ?: "?"} 재생 중 · 코덱 ${dec.id} ${dec.name} · MTU $mtu · %.1f KB/s\n버퍼 %dms (+재생장치 %dms) · 손실 %d · 끊김 %d회 · 버림 %dms".format(
+                        kb, p.bufferedMs, p.trackMs, lost, p.underruns, p.droppedMs
                     ),
                     updateNotification = false,
                 )

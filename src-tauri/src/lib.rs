@@ -6,62 +6,26 @@ pub mod audio;
 pub mod ble;
 pub mod capture;
 pub mod codec;
+pub mod encoding;
 
-/// 보낼 코덱. 번호·종류는 docs/CODECS.md. 앱 쪽(Codecs.kt 의 ACTIVE)도 같은 번호로 맞출 것.
-pub const CODEC: codec::Codec = codec::Codec::Ulaw16kMono;
-
+use codec::Codec;
 use serde::Serialize;
 use std::hash::{BuildHasher, Hasher};
-use std::sync::Arc;
 use tauri::{Manager, State};
-use tokio::sync::{broadcast, Mutex};
-
-/// 인코딩된 코덱 데이터가 흐르는 통로 (인코더 → 전송)
-pub type EncodedTx = broadcast::Sender<Arc<Vec<u8>>>;
-
-/// drop되면 인코딩을 멈춘다.
-pub struct Encoding(tokio::task::JoinHandle<()>);
-
-impl Drop for Encoding {
-    fn drop(&mut self) {
-        self.0.abort();
-    }
-}
-
-/// 캡처한 소리를 CODEC 으로 인코딩해 새 통로로 흘린다.
-/// 인코딩은 한 번만 하고, 전송 쪽 청취자들이 이 통로를 나눠 구독한다.
-pub fn start_encoding(audio: &audio::AudioTx) -> (Encoding, EncodedTx) {
-    let (tx, _) = broadcast::channel(64);
-    let task = tokio::spawn(encode_loop(audio.subscribe(), tx.clone()));
-    (Encoding(task), tx)
-}
-
-async fn encode_loop(mut rx: broadcast::Receiver<Arc<audio::AudioChunk>>, tx: EncodedTx) {
-    let mut enc = codec::encoder(CODEC);
-    loop {
-        match rx.recv().await {
-            Ok(chunk) => {
-                let data = enc.encode(&chunk);
-                if !data.is_empty() {
-                    let _ = tx.send(Arc::new(data));
-                }
-            }
-            Err(broadcast::error::RecvError::Lagged(_)) => continue,
-            Err(broadcast::error::RecvError::Closed) => break,
-        }
-    }
-}
+use tokio::sync::{watch, Mutex};
 
 // 공유 중일 때만 Some. drop되면 전송·인코딩·캡처가 함께 멈춘다 (필드 순서 = drop 순서, ble 먼저)
 struct Sharing {
     ble: ble::BleServer,
-    _encoding: Encoding,
+    _encoding: encoding::Encoding,
     _capture: capture::Capture,
 }
 
 struct AppState {
     sharing: Mutex<Option<Sharing>>,
     id: ble::DeviceId,
+    /// 지금 고른 코덱. 공유 중에 바꾸면 인코더가 다음 조각부터 따라간다
+    codec: watch::Sender<Codec>,
 }
 
 #[derive(Serialize)]
@@ -70,6 +34,14 @@ struct Status {
     listeners: usize,
     /// 폰이 QR로 읽는 연결 주소 (android 의 MainActivity 딥링크와 같아야 함)
     link: String,
+    /// 지금 고른 코덱 번호
+    codec: u8,
+}
+
+#[derive(Serialize)]
+struct CodecInfo {
+    id: u8,
+    name: &'static str,
 }
 
 // PC 고유 번호: 처음 한 번 만들어 설정 폴더에 저장 → 앱을 다시 켜도 QR이 그대로
@@ -94,8 +66,8 @@ async fn start_sharing(state: State<'_, AppState>) -> Result<(), String> {
         return Ok(());
     }
     let audio = audio::channel();
-    let (encoding, encoded) = start_encoding(&audio);
-    let ble = ble::start(encoded, CODEC, state.id).await?;
+    let (encoding, encoded) = encoding::start(&audio, state.codec.subscribe());
+    let ble = ble::start(encoded, state.id).await?;
     let capture = capture::start(audio)?;
     *guard = Some(Sharing { ble, _encoding: encoding, _capture: capture });
     Ok(())
@@ -114,7 +86,22 @@ async fn sharing_status(state: State<'_, AppState>) -> Result<Status, String> {
         running: guard.is_some(),
         listeners: guard.as_ref().map_or(0, |s| s.ble.listeners()),
         link: format!("hearone://connect?id={}", ble::device_id_hex(&state.id)),
+        codec: state.codec.borrow().id(),
     })
+}
+
+/// 화면에서 고를 수 있는 코덱 목록 (번호·이름은 docs/CODECS.md)
+#[tauri::command]
+fn codecs() -> Vec<CodecInfo> {
+    Codec::ALL.iter().map(|&c| CodecInfo { id: c.id(), name: c.name() }).collect()
+}
+
+/// 코덱 바꾸기. 공유 중이면 바로 적용되고, 폰은 패킷 헤더의 번호를 보고 따라간다
+#[tauri::command]
+fn set_codec(state: State<'_, AppState>, id: u8) -> Result<(), String> {
+    let codec = Codec::from_id(id).ok_or(format!("없는 코덱 번호: {id}"))?;
+    state.codec.send_replace(codec);
+    Ok(())
 }
 
 pub fn run() {
@@ -122,10 +109,20 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .setup(|app| {
             let dir = app.path().app_config_dir()?;
-            app.manage(AppState { sharing: Mutex::new(None), id: load_device_id(dir) });
+            app.manage(AppState {
+                sharing: Mutex::new(None),
+                id: load_device_id(dir),
+                codec: watch::channel(Codec::DEFAULT).0,
+            });
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![start_sharing, stop_sharing, sharing_status])
+        .invoke_handler(tauri::generate_handler![
+            start_sharing,
+            stop_sharing,
+            sharing_status,
+            codecs,
+            set_codec
+        ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
