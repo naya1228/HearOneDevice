@@ -81,7 +81,10 @@ class MainActivity : Activity() {
             addView(title)
             addView(hint)
             addView(scanButton)
-            addView(listenButton)
+            addView(listenButton, LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+            ).apply { topMargin = (16 * resources.displayMetrics.density).toInt() })
             addView(statusView)
         })
 

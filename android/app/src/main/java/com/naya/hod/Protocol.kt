@@ -24,7 +24,7 @@ object Protocol {
     const val VERSION = 1
     const val HEADER_LEN = 4
 
-    /** codec = 코덱 번호 (Codecs.kt), 코덱 데이터는 data[HEADER_LEN..] */
+    /** codec = 코덱 번호 (Codecs.kt), 코덱 데이터는 data\[HEADER_LEN..] */
     class Packet(val seq: Int, val codec: Int, val data: ByteArray)
 
     /** 헤더가 깨졌거나 버전이 다르면 null. 코덱 번호 확인은 받는 쪽에서 */
