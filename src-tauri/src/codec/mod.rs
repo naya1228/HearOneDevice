@@ -15,27 +15,27 @@ use crate::audio::AudioChunk;
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[repr(u8)]
 pub enum Codec {
-    /// μ-law, 16kHz 모노 (16KB/s)
-    Ulaw16kMono = 1,
-    /// IMA ADPCM, 32kHz 스테레오 (약 33KB/s)
-    AdpcmStereo32k = 2,
-    /// IMA ADPCM, 48kHz 스테레오 (약 49KB/s)
-    AdpcmStereo48k = 3,
     /// Opus 48kHz 스테레오 128kbps (16KB/s)
-    OpusStereo128k = 4,
+    OpusStereo128k = 1,
     /// Opus 48kHz 스테레오 64kbps (8KB/s)
-    OpusStereo64k = 5,
+    OpusStereo64k = 2,
+    /// IMA ADPCM, 32kHz 스테레오 (약 33KB/s)
+    AdpcmStereo32k = 3,
+    /// IMA ADPCM, 48kHz 스테레오 (약 49KB/s)
+    AdpcmStereo48k = 4,
+    /// μ-law, 16kHz 모노 (16KB/s)
+    Ulaw16kMono = 5,
 }
 
 impl Codec {
     /// 화면에서 고를 수 있는 코덱 목록
     pub const ALL: &'static [Codec] =
         &[
-            Codec::Ulaw16kMono,
-            Codec::AdpcmStereo32k,
-            Codec::AdpcmStereo48k,
             Codec::OpusStereo128k,
             Codec::OpusStereo64k,
+            Codec::AdpcmStereo32k,
+            Codec::AdpcmStereo48k,
+            Codec::Ulaw16kMono,
         ];
     /// 앱을 켰을 때 처음 쓰는 코덱
     pub const DEFAULT: Codec = Codec::OpusStereo128k;

@@ -64,7 +64,7 @@ mod tests {
         let pk = p.packets(Codec::Ulaw16kMono, &[7u8; 250]);
         assert_eq!(pk.len(), 3);
         assert!(pk.iter().all(|x| x.len() <= 100));
-        assert_eq!(&pk[2][..4], &[1, 1, 2, 0]);
+        assert_eq!(&pk[2][..4], &[1, 5, 2, 0]);
         assert_eq!(pk.iter().map(|x| x.len() - HEADER_LEN).sum::<usize>(), 250);
     }
 }

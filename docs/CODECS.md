@@ -6,11 +6,11 @@ PC → 폰으로 보내는 소리 형식 목록입니다. 패킷 헤더 두 번�
 
 | 번호 | 이름 | 샘플레이트 | 채널 | 샘플당 | 대역폭 | PC 인코더 | 앱 디코더 | 비고 |
 |---|---|---|---|---|---|---|---|---|
-| **1** | μ-law 16kHz 모노 | 16 kHz | 모노 | 8 bit | 16 KB/s | `src-tauri/src/codec/ulaw.rs` | `Codecs.kt` `Ulaw16kMono` | 2026-10-01 S25 실기기 확인 (손실 0) |
-| **2** | ADPCM 32kHz 스테레오 | 32 kHz | 스테레오 | 4 bit | 약 33 KB/s | `src-tauri/src/codec/adpcm.rs` | `Codecs.kt` `AdpcmStereo` | 10ms 프레임 332B → MTU 335 이상 필요. 2026-10-05 S25 확인 (손실 0) |
-| **3** | ADPCM 48kHz 스테레오 | 48 kHz | 스테레오 | 4 bit | 약 49 KB/s | 〃 | 〃 | 10ms 프레임 492B → MTU 495 이상 필요. 2026-10-05 S25 확인 (손실 0) |
-| **4** | Opus 48kHz 스테레오 128kbps | 48 kHz | 스테레오 | 가변 | 16 KB/s | `src-tauri/src/codec/opus.rs` | `Codecs.kt` `OpusStereo` (MediaCodec) | **기본값.** 20ms 프레임, 최대 480B. 2026-10-05 S25 확인 |
-| **5** | Opus 48kHz 스테레오 64kbps | 〃 | 〃 | 〃 | 8 KB/s | 〃 | 〃 | 20ms 프레임, 최대 480B. 2026-10-05 S25 확인 |
+| **1** | Opus 48kHz 스테레오 128kbps | 48 kHz | 스테레오 | 가변 | 16 KB/s | `src-tauri/src/codec/opus.rs` | `Codecs.kt` `OpusStereo` (MediaCodec) | **기본값.** 20ms 프레임, 최대 480B. 2026-10-05 S25 확인 |
+| **2** | Opus 48kHz 스테레오 64kbps | 48 kHz | 스테레오 | 가변 | 8 KB/s | `src-tauri/src/codec/opus.rs` | `Codecs.kt` `OpusStereo` (MediaCodec) | 20ms 프레임, 최대 480B. 2026-10-05 S25 확인 |
+| **3** | ADPCM 32kHz 스테레오 | 32 kHz | 스테레오 | 4 bit | 약 33 KB/s | `src-tauri/src/codec/adpcm.rs` | `Codecs.kt` `AdpcmStereo` | 10ms 프레임 332B → MTU 335 이상 필요. 2026-10-05 S25 확인 (손실 0) |
+| **4** | ADPCM 48kHz 스테레오 | 48 kHz | 스테레오 | 4 bit | 약 49 KB/s | `src-tauri/src/codec/adpcm.rs` | `Codecs.kt` `AdpcmStereo` | 10ms 프레임 492B → MTU 495 이상 필요. 2026-10-05 S25 확인 (손실 0) |
+| **5** | μ-law 16kHz 모노 | 16 kHz | 모노 | 8 bit | 16 KB/s | `src-tauri/src/codec/ulaw.rs` | `Codecs.kt` `Ulaw16kMono` | 2026-10-01 S25 실기기 확인 (손실 0) |
 
 번호는 한 번 쓰면 **재사용하지 않습니다**. 실험하다 버린 코덱도 번호는 비워 둡니다.
 
@@ -22,7 +22,7 @@ PC → 폰으로 보내는 소리 형식 목록입니다. 패킷 헤더 두 번�
 폰 앱은 패킷 헤더의 코덱 번호를 보고 맞는 디코더로 알아서 바꿉니다 (다시 빌드할 필요 없음).
 
 - UI 없이 테스트: `cargo run --example send -- 1` (마지막 숫자가 코덱 번호, 빼면 기본 코덱)
-- 앱 화면에 `재생 중 · 코덱 1 μ-law 16kHz 모노 · ...`처럼 지금 받는 코덱이 표시됩니다.
+- 앱 화면에 `재생 중 · 코덱 1 Opus 48kHz 스테레오 128kbps · ...`처럼 지금 받는 코덱이 표시됩니다.
 - 앱이 모르는 번호가 오면 `PC가 보낸 코덱 N번을 이 앱이 모름. 앱 업데이트 필요`가 뜨고 소리는 나지 않습니다.
 - 처음 켰을 때 코덱은 `codec/mod.rs`의 `Codec::DEFAULT`.
 

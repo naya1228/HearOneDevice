@@ -1,4 +1,4 @@
-// 코덱 4·5: Opus 48kHz 스테레오 (libopus, opus 크레이트). 앱 쪽은 android/.../Codecs.kt 의 OpusStereo.
+// 코덱 1·2: Opus 48kHz 스테레오 (libopus, opus 크레이트). 앱 쪽은 android/.../Codecs.kt 의 OpusStereo.
 //
 // 프레임 하나 = 20ms = 패킷 하나. Ogg 같은 컨테이너 없이 Opus 패킷을 그대로 보낸다.
 

@@ -1,4 +1,4 @@
-// 코덱 1: G.711 μ-law (바이트 1개 = 샘플 1개)
+// 코덱 5: G.711 μ-law (바이트 1개 = 샘플 1개)
 
 use super::resample::Resampler;
 use super::Encoder;

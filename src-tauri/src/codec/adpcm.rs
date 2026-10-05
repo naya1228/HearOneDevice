@@ -1,4 +1,4 @@
-// 코덱 2·3: IMA ADPCM 스테레오 (샘플 하나 = 4bit). 앱 쪽은 android/.../Codecs.kt 의 AdpcmStereo.
+// 코덱 3·4: IMA ADPCM 스테레오 (샘플 하나 = 4bit). 앱 쪽은 android/.../Codecs.kt 의 AdpcmStereo.
 //
 // 프레임 하나 = 10ms. 패킷을 잃어도 다음 프레임부터 바로 회복되도록 프레임마다 시작 상태를 싣는다:
 //   [0..2] L 예측값 i16 LE, [2] L 스텝 인덱스, [3] 0

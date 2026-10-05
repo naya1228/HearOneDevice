@@ -8,11 +8,11 @@ import java.nio.ByteOrder
 
 // 코덱 번호 목록. PC(src-tauri/src/codec/mod.rs 의 Codec)와 번호가 같아야 함. 표는 docs/CODECS.md
 object Codecs {
-    const val ULAW_16K_MONO = 1
-    const val ADPCM_32K_STEREO = 2
-    const val ADPCM_48K_STEREO = 3
-    const val OPUS_128K_STEREO = 4
-    const val OPUS_64K_STEREO = 5
+    const val OPUS_128K_STEREO = 1
+    const val OPUS_64K_STEREO = 2
+    const val ADPCM_32K_STEREO = 3
+    const val ADPCM_48K_STEREO = 4
+    const val ULAW_16K_MONO = 5
 
     interface Decoder {
         val id: Int
@@ -36,7 +36,7 @@ object Codecs {
         else -> null
     }
 
-    // 코덱 1: G.711 μ-law → 16bit PCM (바이트 1개 = 샘플 1개)
+    // 코덱 5: G.711 μ-law → 16bit PCM (바이트 1개 = 샘플 1개)
     object Ulaw16kMono : Decoder {
         override val id = ULAW_16K_MONO
         override val name = "μ-law 16kHz 모노"
@@ -54,7 +54,7 @@ object Codecs {
             ShortArray(data.size - offset) { TABLE[data[it + offset].toInt() and 0xFF] }
     }
 
-    // 코덱 2·3: IMA ADPCM 스테레오 (PC src-tauri/src/codec/adpcm.rs 와 같은 형식)
+    // 코덱 3·4: IMA ADPCM 스테레오 (PC src-tauri/src/codec/adpcm.rs 와 같은 형식)
     // 프레임 = [L 예측값 i16 LE, L 인덱스, 0, R 예측값 i16 LE, R 인덱스, 0] + 샘플마다 1바이트(아래 4bit L, 위 4bit R)
     // 프레임마다 시작 상태가 있어서 앞 패킷을 잃어도 이 프레임만으로 풀린다
     class AdpcmStereo(override val id: Int, override val name: String, override val sampleRate: Int) : Decoder {
@@ -97,7 +97,7 @@ object Codecs {
         }
     }
 
-    // 코덱 4·5: Opus 48kHz 스테레오 (PC src-tauri/src/codec/opus.rs). 비트레이트는 PC 쪽 설정이라 디코더는 같다.
+    // 코덱 1·2: Opus 48kHz 스테레오 (PC src-tauri/src/codec/opus.rs). 비트레이트는 PC 쪽 설정이라 디코더는 같다.
     // 안드로이드 내장 디코더(MediaCodec, Android 5.0+)를 쓴다. 패킷 하나 = 20ms 프레임 하나, 컨테이너 없음.
     class OpusStereo(override val id: Int, override val name: String) : Decoder {
         override val sampleRate = 48000
