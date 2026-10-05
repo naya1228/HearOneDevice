@@ -13,7 +13,7 @@ PC 시스템 소리 → 블루투스(BLE) → 안드로이드 앱에서 재생. 
 - **코덱 표·바꾸는 법: `docs/CODECS.md`** (앱 `Codecs.kt`는 헤더 번호로 디코더 자동 선택, 양쪽 번호 같아야 함)
 - `src-tauri/src/ble.rs` — BLE 송신 (Linux/BlueZ). 인코딩된 바이트만 받아 나름(코덱 모름). Windows는 `ble_unsupported.rs` (미구현)
 - `src-tauri/examples/send.rs` — UI 없이 송신 테스트: `cargo run --example send`
-- `android/` — 수신 앱 (Kotlin. 소리 처리엔 외부 라이브러리 없음, Opus는 내장 MediaCodec. QR 스캔만 ML Kit). `AudioService`(포그라운드 서비스)가 BLE 수신+재생
+- `android/` — 수신 앱 (Kotlin. Opus 디코딩은 안드로이드 내장 MediaCodec, QR 스캔은 ML Kit). `AudioService`(포그라운드 서비스)가 BLE 수신+재생
 - **UUID·패킷 형식은 `codec/`·`ble.rs` ↔ `Protocol.kt`·`Codecs.kt` 양쪽이 같아야 함**
 
 ## 확정된 결정
