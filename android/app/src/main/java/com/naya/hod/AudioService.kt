@@ -245,6 +245,10 @@ class AudioService : Service() {
 
     private fun onAudio(data: ByteArray) {
         val packet = Protocol.parse(data) ?: return
+        if (packet.codec == Protocol.CONTROL) {
+            onControl(packet)
+            return
+        }
         if (lastSeq >= 0) {
             val gap = (packet.seq - lastSeq - 1) and 0xFFFF
             if (gap in 1..1000) lost += gap
@@ -255,6 +259,17 @@ class AudioService : Service() {
             if (!isRunning) return
             val dec = decoder?.takeIf { it.id == packet.codec } ?: switchCodec(packet.codec) ?: return
             player?.push(dec.decode(packet.data, Protocol.HEADER_LEN))
+        }
+    }
+
+    // PC가 보낸 제어 메시지. 공유 중지면 정지 버튼과 똑같이 멈춘다 (다시 찾지 않음)
+    private fun onControl(packet: Protocol.Packet) {
+        val cmd = packet.data.getOrNull(Protocol.HEADER_LEN)?.toInt() ?: return
+        if (cmd == Protocol.CONTROL_STOP) {
+            handler.post {
+                stopAll()
+                setStatus("PC에서 공유를 중지했어요")
+            }
         }
     }
 

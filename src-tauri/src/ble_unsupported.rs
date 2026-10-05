@@ -13,6 +13,8 @@ impl BleServer {
     pub fn listeners(&self) -> usize {
         0
     }
+
+    pub async fn stop(&self) {}
 }
 
 pub async fn start(_encoded: EncodedTx, _id: DeviceId) -> Result<BleServer, String> {

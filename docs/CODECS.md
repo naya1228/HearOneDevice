@@ -1,6 +1,6 @@
 # 코덱 표
 
-PC → 폰으로 보내는 소리 형식 목록입니다. 패킷 헤더 두 번째 바이트(`[1]`)에 아래 **번호**가 들어갑니다.
+PC → 폰으로 보내는 소리 형식 목록입니다. 패킷 헤더 두 번째 바이트(`[1]`)에 아래 **번호**가 들어갑니다. 패킷 형식은 [PROTOCOL.md](PROTOCOL.md).
 
 ## 구현된 코덱
 
@@ -11,6 +11,8 @@ PC → 폰으로 보내는 소리 형식 목록입니다. 패킷 헤더 두 번�
 | **3** | ADPCM 32kHz 스테레오 | 32 kHz | 스테레오 | 4 bit | 약 33 KB/s | `src-tauri/src/codec/adpcm.rs` | `Codecs.kt` `AdpcmStereo` | 10ms 프레임 332B → MTU 335 이상 필요. 2026-10-05 S25 확인 (손실 0) |
 | **4** | ADPCM 48kHz 스테레오 | 48 kHz | 스테레오 | 4 bit | 약 49 KB/s | `src-tauri/src/codec/adpcm.rs` | `Codecs.kt` `AdpcmStereo` | 10ms 프레임 492B → MTU 495 이상 필요. 2026-10-05 S25 확인 (손실 0) |
 | **5** | μ-law 16kHz 모노 | 16 kHz | 모노 | 8 bit | 16 KB/s | `src-tauri/src/codec/ulaw.rs` | `Codecs.kt` `Ulaw16kMono` | 2026-10-01 S25 실기기 확인 (손실 0) |
+
+**0번은 코덱이 아니라 제어 메시지**입니다 ([PROTOCOL.md](PROTOCOL.md) 4절).
 
 번호는 한 번 쓰면 **재사용하지 않습니다**. 실험하다 버린 코덱도 번호는 비워 둡니다.
 

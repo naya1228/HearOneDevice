@@ -1,7 +1,7 @@
 // BLE 송신 (Linux/BlueZ). PC가 광고(peripheral)하고 폰 앱이 찾아와 구독(central)한다.
 // 인코딩된 데이터(encoding.rs)를 받아, 구독한 폰마다 notify로 패킷을 계속 밀어 보낸다.
 
-use crate::codec::packet::Packetizer;
+use crate::codec::packet::{Packetizer, CONTROL_STOP};
 use crate::encoding::{Encoded, EncodedTx};
 use bluer::{
     adv::{Advertisement, AdvertisementHandle},
@@ -16,16 +16,14 @@ use futures_util::StreamExt;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use tokio::io::AsyncWriteExt;
-use tokio::sync::broadcast;
+use tokio::sync::{broadcast, watch};
 use tokio::task::JoinSet;
 
-// android/.../Protocol.kt 의 UUID와 같아야 함
+// UUID·광고 형식은 docs/PROTOCOL.md
 pub const SERVICE_UUID: Uuid = Uuid::from_u128(0x5e7a0001_3c1b_4f6e_9d2a_7b1c0e5a9f10);
 pub const AUDIO_CHAR_UUID: Uuid = Uuid::from_u128(0x5e7a0002_3c1b_4f6e_9d2a_7b1c0e5a9f10);
 
-// 광고에 PC 고유 번호를 실어 폰이 QR로 받은 번호와 맞춰 찾는다 (Protocol.kt 와 같아야 함)
-// 광고 31바이트 제한: flags(3) + 128bit UUID(18) + 제조사 데이터(4+4) = 29 → 이름은 못 넣음
-pub const MANUFACTURER_ID: u16 = 0xFFFF; // 테스트/미등록용 예약 ID
+pub const MANUFACTURER_ID: u16 = 0xFFFF;
 
 /// PC 고유 번호 4바이트. QR에는 16진수 8자리로 들어간다.
 pub type DeviceId = [u8; 4];
@@ -40,11 +38,25 @@ pub struct BleServer {
     _app: ApplicationHandle,
     accept_task: tokio::task::JoinHandle<()>,
     listeners: Arc<AtomicUsize>,
+    stop_tx: watch::Sender<bool>,
 }
 
 impl BleServer {
     pub fn listeners(&self) -> usize {
         self.listeners.load(Ordering::Relaxed)
+    }
+
+    /// 구독 중인 폰마다 "공유 중지" 제어 패킷을 보내고 기다린다. 이후 drop하면 연결이 정리된다.
+    /// (그냥 drop하면 폰은 연결이 끊긴 줄 알고 다시 찾는다)
+    pub async fn stop(&self) {
+        self.stop_tx.send_replace(true);
+        // 모든 청취자가 중지 패킷을 쓰고 끝날 때까지 (최대 0.5초)
+        let deadline = tokio::time::Instant::now() + std::time::Duration::from_millis(500);
+        while self.listeners() > 0 && tokio::time::Instant::now() < deadline {
+            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+        }
+        // 소켓에 쓴 패킷이 실제 전파로 나갈 시간
+        tokio::time::sleep(std::time::Duration::from_millis(200)).await;
     }
 }
 
@@ -98,6 +110,7 @@ pub async fn start(encoded: EncodedTx, id: DeviceId) -> Result<BleServer, String
 
     let listeners = Arc::new(AtomicUsize::new(0));
     let count = listeners.clone();
+    let (stop_tx, stop_rx) = watch::channel(false);
     let accept_task = tokio::spawn(async move {
         // 이 태스크가 abort되면 JoinSet이 drop되며 청취자 태스크도 전부 abort됨
         let mut set = JoinSet::new();
@@ -105,18 +118,19 @@ pub async fn start(encoded: EncodedTx, id: DeviceId) -> Result<BleServer, String
         while let Some(evt) = char_control.next().await {
             if let CharacteristicControlEvent::Notify(writer) = evt {
                 println!("[ble] 구독 시작: {} (MTU {})", writer.device_address(), writer.mtu());
-                set.spawn(listener_loop(writer, encoded.subscribe(), count.clone()));
+                set.spawn(listener_loop(writer, encoded.subscribe(), stop_rx.clone(), count.clone()));
             }
         }
     });
 
     println!("[ble] 광고 시작: {}", device_id_hex(&id));
-    Ok(BleServer { _adv: adv, _app: app, accept_task, listeners })
+    Ok(BleServer { _adv: adv, _app: app, accept_task, listeners, stop_tx })
 }
 
 async fn listener_loop(
     mut writer: CharacteristicWriter,
     mut rx: broadcast::Receiver<Arc<Encoded>>,
+    mut stop: watch::Receiver<bool>,
     count: Arc<AtomicUsize>,
 ) {
     count.fetch_add(1, Ordering::Relaxed);
@@ -124,7 +138,16 @@ async fn listener_loop(
     // ATT 헤더 3바이트 제외, 속성 최대 길이 512
     let mut packetizer = Packetizer::new(writer.mtu().saturating_sub(3).clamp(20, 512));
     'outer: loop {
-        let enc = match rx.recv().await {
+        let received = tokio::select! {
+            r = rx.recv() => r,
+            // stop 값은 false → true 로 한 번만 바뀐다
+            _ = stop.changed() => {
+                let _ = writer.write_all(&packetizer.control(CONTROL_STOP)).await;
+                println!("[ble] {addr} 공유 중지 알림");
+                break;
+            }
+        };
+        let enc = match received {
             Ok(u) => u,
             Err(broadcast::error::RecvError::Lagged(n)) => {
                 println!("[ble] {addr} 전송 밀림, 조각 {n}개 건너뜀");

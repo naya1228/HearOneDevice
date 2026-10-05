@@ -75,8 +75,16 @@ async fn start_sharing(state: State<'_, AppState>) -> Result<(), String> {
 
 #[tauri::command]
 async fn stop_sharing(state: State<'_, AppState>) -> Result<(), String> {
-    state.sharing.lock().await.take();
+    end_sharing(&state).await;
     Ok(())
+}
+
+/// 공유를 끝낸다. 폰에 "공유 중지"를 알린 뒤 drop (그래야 폰이 다시 찾지 않고 멈춘다)
+async fn end_sharing(state: &AppState) {
+    let sharing = state.sharing.lock().await.take();
+    if let Some(s) = sharing {
+        s.ble.stop().await;
+    }
 }
 
 #[tauri::command]
@@ -123,6 +131,18 @@ pub fn run() {
             codecs,
             set_codec
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application")
+        .run(|app, event| {
+            // 창을 닫아 앱이 끝날 때도 폰에 "공유 중지"를 알리고 종료.
+            // code: None = 사용자가 닫음, Some = 아래 app.exit() 가 부른 것 (다시 막지 않음)
+            if let tauri::RunEvent::ExitRequested { code: None, api, .. } = event {
+                api.prevent_exit();
+                let app = app.clone();
+                tauri::async_runtime::spawn(async move {
+                    end_sharing(&app.state::<AppState>()).await;
+                    app.exit(0);
+                });
+            }
+        });
 }

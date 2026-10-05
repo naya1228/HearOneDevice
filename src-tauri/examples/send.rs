@@ -28,5 +28,6 @@ async fn main() -> Result<(), String> {
             _ = tick.tick() => println!("청취자 {}명", server.listeners()),
         }
     }
+    server.stop().await;
     Ok(())
 }

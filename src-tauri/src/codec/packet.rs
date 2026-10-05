@@ -1,15 +1,13 @@
-// BLE 패킷 헤더 + MTU에 맞게 자르기.
-//
-// 패킷 형식 (android/.../Protocol.kt 와 같아야 함):
-//   [0] 버전   = 1
-//   [1] 코덱 번호 (codec/mod.rs 의 Codec, android/.../Codecs.kt 와 같아야 함)
-//   [2..4] 순번 u16 little-endian (청취자별, 손실 감지용)
-//   [4..]  코덱 데이터
+// BLE 패킷 헤더 + MTU에 맞게 자르기. 형식·제어 메시지는 docs/PROTOCOL.md
 
 use super::Codec;
 
 pub const PROTOCOL_VERSION: u8 = 1;
 pub const HEADER_LEN: usize = 4;
+
+/// 제어 메시지 (docs/PROTOCOL.md 4절)
+pub const CONTROL: u8 = 0;
+pub const CONTROL_STOP: u8 = 1;
 
 /// 청취자별로 순번을 매겨 MTU에 맞는 패킷으로 만든다.
 pub struct Packetizer {
@@ -39,18 +37,22 @@ impl Packetizer {
         } else {
             data.chunks(self.max_payload).collect()
         };
-        parts
-            .into_iter()
-            .map(|part| {
-                let mut p = Vec::with_capacity(HEADER_LEN + part.len());
-                p.push(PROTOCOL_VERSION);
-                p.push(codec.id());
-                p.extend_from_slice(&self.seq.to_le_bytes());
-                p.extend_from_slice(part);
-                self.seq = self.seq.wrapping_add(1);
-                p
-            })
-            .collect()
+        parts.into_iter().map(|part| self.packet(codec.id(), part)).collect()
+    }
+
+    /// 제어 메시지 패킷 (cmd = CONTROL_STOP 등)
+    pub fn control(&mut self, cmd: u8) -> Vec<u8> {
+        self.packet(CONTROL, &[cmd])
+    }
+
+    fn packet(&mut self, codec_id: u8, part: &[u8]) -> Vec<u8> {
+        let mut p = Vec::with_capacity(HEADER_LEN + part.len());
+        p.push(PROTOCOL_VERSION);
+        p.push(codec_id);
+        p.extend_from_slice(&self.seq.to_le_bytes());
+        p.extend_from_slice(part);
+        self.seq = self.seq.wrapping_add(1);
+        p
     }
 }
 
@@ -66,5 +68,12 @@ mod tests {
         assert!(pk.iter().all(|x| x.len() <= 100));
         assert_eq!(&pk[2][..4], &[1, 5, 2, 0]);
         assert_eq!(pk.iter().map(|x| x.len() - HEADER_LEN).sum::<usize>(), 250);
+    }
+
+    #[test]
+    fn control_packet_continues_seq() {
+        let mut p = Packetizer::new(100);
+        p.packets(Codec::Ulaw16kMono, &[0u8; 10]);
+        assert_eq!(p.control(CONTROL_STOP), vec![1, CONTROL, 1, 0, CONTROL_STOP]);
     }
 }
