@@ -80,6 +80,10 @@ class MainActivity : Activity() {
             setBackgroundColor(Color.rgb(0x1F, 0x1F, 0x1E))
             addView(title)
             addView(hint)
+            val size = (240 * resources.displayMetrics.density).toInt()
+            addView(CircleVisualizer(this@MainActivity), LinearLayout.LayoutParams(size, size).apply {
+                bottomMargin = (24 * resources.displayMetrics.density).toInt()
+            })
             addView(scanButton)
             addView(listenButton, LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,

@@ -47,6 +47,8 @@ class AudioService : Service() {
         @Volatile var status = "정지됨"; private set
         /** 화면에 상태를 보여주기 위한 콜백 (MainActivity가 등록) */
         @Volatile var onStatus: ((String) -> Unit)? = null
+        /** 재생 중인 소리 (MainActivity의 비주얼라이저가 읽음) */
+        val tap = AudioTap()
     }
 
     private val handler = Handler(Looper.getMainLooper())
@@ -268,7 +270,7 @@ class AudioService : Service() {
         unknownCodec = 0
         if (dec.sampleRate != decoder?.sampleRate || dec.channels != decoder?.channels) {
             player?.stop()
-            player = JitterPlayer(dec.sampleRate, dec.channels).also { it.start() }
+            player = JitterPlayer(dec.sampleRate, dec.channels, tap).also { it.start() }
         }
         decoder?.close()
         decoder = dec

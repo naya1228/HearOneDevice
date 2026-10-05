@@ -10,7 +10,12 @@ import android.media.AudioTrack
  * - 1초 동안의 최저 수위가 target 보다 높으면 그만큼 버림 (지연 누적·시계 차이 보정)
  * - max 를 넘게 쌓이면 즉시 오래된 조각을 버림 (몰려온 데이터 대비)
  */
-class JitterPlayer(private val rate: Int, private val channels: Int = 1) {
+class JitterPlayer(
+    private val rate: Int,
+    private val channels: Int = 1,
+    /** 재생 직전 소리를 넘겨받는 곳 (비주얼라이저) */
+    private val tap: AudioTap? = null,
+) {
     // 아래 수치와 queued는 샘플 수 (스테레오면 L·R 각각 하나씩 = 프레임당 2)
     private val perMs = rate * channels / 1000
     private val prebuffer = perMs * 60  // 60ms
@@ -103,6 +108,7 @@ class JitterPlayer(private val rate: Int, private val channels: Int = 1) {
                         }
                     }
                 } ?: continue
+                tap?.write(chunk, channels, rate)
                 track.write(chunk, 0, chunk.size) // 재생 버퍼가 차면 여기서 기다림
             }
             track.stop()
