@@ -32,7 +32,7 @@ class MainActivity : Activity() {
     private lateinit var statsView: TextView
     private lateinit var listenButton: Button
 
-    // 권한을 받는 동안 기다리는 연결 요청 (null 이면 마지막 PC)
+    // 권한을 받는 동안 기다리는 연결 요청
     private var pendingId: String? = null
 
     private val permissions: Array<String>
@@ -141,12 +141,10 @@ class MainActivity : Activity() {
 
     private fun render(status: String) {
         statusView.text = status
+        // 기록이 없으면 버튼을 숨김 (QR로 먼저 연결해야 기록이 생김. 아무 PC나 찾지 않는다)
         val last = SavedPcs.last(this)
-        listenButton.text = when {
-            AudioService.isRunning -> "정지"
-            last != null -> "마지막 PC(${last.label})로 듣기"
-            else -> "가까운 PC로 듣기"
-        }
+        listenButton.visibility = if (AudioService.isRunning || last != null) View.VISIBLE else View.GONE
+        listenButton.text = if (AudioService.isRunning) "정지" else "마지막 PC(${last?.label})로 듣기"
     }
 
     private fun handleLink(intent: Intent?) {
@@ -177,7 +175,7 @@ class MainActivity : Activity() {
         if (AudioService.isRunning) {
             startService(Intent(this, AudioService::class.java).setAction(AudioService.ACTION_STOP))
         } else {
-            connect(SavedPcs.last(this)?.id)
+            SavedPcs.last(this)?.let { connect(it.id) }
         }
     }
 
@@ -190,15 +188,14 @@ class MainActivity : Activity() {
         if (requestCode == REQ_HISTORY && resultCode == RESULT_OK && id != null) connect(id)
     }
 
-    /** id가 null이면 처음 발견한 PC에 연결 */
-    private fun connect(id: String?) {
+    private fun connect(id: String) {
         val missing = permissions.filter { checkSelfPermission(it) != PackageManager.PERMISSION_GRANTED }
         if (missing.isNotEmpty()) {
             pendingId = id
             requestPermissions(missing.toTypedArray(), 1)
             return
         }
-        if (id != null) SavedPcs.remember(this, id, null)
+        SavedPcs.remember(this, id, null)
         startForegroundService(
             Intent(this, AudioService::class.java)
                 .setAction(AudioService.ACTION_START)
@@ -209,7 +206,7 @@ class MainActivity : Activity() {
     override fun onRequestPermissionsResult(code: Int, perms: Array<out String>, results: IntArray) {
         super.onRequestPermissionsResult(code, perms, results)
         if (results.isNotEmpty() && results.all { it == PackageManager.PERMISSION_GRANTED }) {
-            connect(pendingId)
+            pendingId?.let { connect(it) }
         } else {
             render("블루투스·알림 권한이 있어야 들을 수 있어요")
         }

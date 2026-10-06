@@ -38,7 +38,7 @@ class AudioService : Service() {
     companion object {
         const val ACTION_START = "com.naya.hod.START"
         const val ACTION_STOP = "com.naya.hod.STOP"
-        /** 연결할 PC 번호 (16진수 8자리). 없으면 처음 발견한 PC */
+        /** 연결할 PC 번호 (16진수 8자리). 없으면 시작하지 않음 (기록에 없는 PC는 찾지 않는다) */
         const val EXTRA_ID = "id"
         private const val CHANNEL_ID = "playback"
         private const val NOTIFICATION_ID = 1
@@ -78,7 +78,7 @@ class AudioService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
-            ACTION_START -> start(intent.getStringExtra(EXTRA_ID))
+            ACTION_START -> intent.getStringExtra(EXTRA_ID)?.let { start(it) }
             ACTION_STOP -> stopAll()
         }
         return START_NOT_STICKY
@@ -89,10 +89,10 @@ class AudioService : Service() {
         super.onDestroy()
     }
 
-    private fun start(id: String?) {
+    private fun start(id: String) {
         if (isRunning) {
             // 재생 중에 다른 PC의 QR을 찍으면 그 PC로 갈아탐
-            if (id != null && id != targetId) {
+            if (id != targetId) {
                 targetId = id
                 stopScan()
                 gatt?.disconnect() // 끊김 처리(onConnectionStateChange)에서 새 번호로 다시 찾음
@@ -144,12 +144,13 @@ class AudioService : Service() {
         }
         lastSeq = -1
         unknownCodec = 0
-        val id = targetId
+        val id = targetId ?: return
         setStatus("${pcLabel()} 찾는 중...")
-        val filter = ScanFilter.Builder().setServiceUuid(ParcelUuid(Protocol.SERVICE_UUID)).apply {
-            // QR로 받은 번호를 광고에 싣고 있는 PC만
-            if (id != null) setManufacturerData(Protocol.MANUFACTURER_ID, Protocol.idBytes(id))
-        }.build()
+        // 이 번호를 광고에 싣고 있는 PC만
+        val filter = ScanFilter.Builder()
+            .setServiceUuid(ParcelUuid(Protocol.SERVICE_UUID))
+            .setManufacturerData(Protocol.MANUFACTURER_ID, Protocol.idBytes(id))
+            .build()
         val settings = ScanSettings.Builder().setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY).build()
         scanner.startScan(listOf(filter), settings, scanCallback)
         scanning = true
@@ -165,11 +166,6 @@ class AudioService : Service() {
         override fun onScanResult(callbackType: Int, result: ScanResult) {
             if (!scanning) return
             stopScan()
-            // 광고에 실린 PC 번호를 기억 → 다음엔 "듣기 시작"만 눌러도 이 PC로
-            result.scanRecord?.getManufacturerSpecificData(Protocol.MANUFACTURER_ID)
-                ?.takeIf { it.size == 4 }
-                ?.joinToString("") { "%02x".format(it) }
-                ?.let { targetId = it; SavedPcs.remember(this@AudioService, it, null) }
             setStatus("${pcLabel()} 발견, 연결 중...")
             gatt = result.device.connectGatt(
                 this@AudioService, false, gattCallback, BluetoothDevice.TRANSPORT_LE
