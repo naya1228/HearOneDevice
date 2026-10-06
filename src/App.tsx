@@ -4,11 +4,11 @@ import Button from "./components/Button";
 import { invoke } from "@tauri-apps/api/core";
 import QRCode from "react-qr-code";
 
-type Status = { running: boolean; listeners: number; link: string; codec: number };
+type Status = { running: boolean; listeners: number; link: string; name: string; codec: number };
 type CodecInfo = { id: number; name: string };
 
 function App() {
-  const [status, setStatus] = useState<Status>({ running: false, listeners: 0, link: "", codec: 0 });
+  const [status, setStatus] = useState<Status>({ running: false, listeners: 0, link: "", name: "", codec: 0 });
   const [codecs, setCodecs] = useState<CodecInfo[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -53,7 +53,8 @@ function App() {
     <main className="flex flex-col bg-[#1F1F1E] items-center p-3 h-dvh">
       <img className="rounded-md w-32 mt-4" src="sharing.svg" />
       <span className="text-white text-4xl font-bold m-2">HearOneDevice</span>
-      <p className="text-gray-500 mb-6">PC 소리를 블루투스로 폰에 보냅니다</p>
+      <p className="text-gray-500">PC 소리를 블루투스로 폰에 보냅니다</p>
+      <p className="text-gray-400 text-sm mb-6">이 PC 이름: {status.name}</p>
 
       <Button type="button" onClick={busy ? undefined : toggle}>
         {busy ? "..." : status.running ? "공유 중지" : "공유 시작"}

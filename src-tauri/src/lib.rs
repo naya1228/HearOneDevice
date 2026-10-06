@@ -37,6 +37,8 @@ struct Status {
     listeners: usize,
     /// 폰이 QR로 읽는 연결 주소 (docs/PROTOCOL.md 1절)
     link: String,
+    /// QR에 싣는 PC 이름 (폰 기록에 처음 저장되는 이름)
+    name: String,
     /// 지금 고른 코덱 번호
     codec: u8,
 }
@@ -97,6 +99,7 @@ async fn sharing_status(state: State<'_, AppState>) -> Result<Status, String> {
         running: guard.is_some(),
         listeners: guard.as_ref().map_or(0, |s| s.ble.listeners()),
         link: link::connect_link(&state.id, &state.name),
+        name: state.name.clone(),
         codec: state.codec.borrow().id(),
     })
 }
