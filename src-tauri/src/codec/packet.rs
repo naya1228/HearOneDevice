@@ -1,4 +1,4 @@
-// BLE 패킷 헤더 + MTU에 맞게 자르기. 형식·제어 메시지는 docs/PROTOCOL.md
+// BLE 패킷 헤더 붙이기. 형식·제어 메시지는 docs/PROTOCOL.md
 
 use super::Codec;
 
@@ -9,7 +9,7 @@ pub const HEADER_LEN: usize = 4;
 pub const CONTROL: u8 = 0;
 pub const CONTROL_STOP: u8 = 1;
 
-/// 청취자별로 순번을 매겨 MTU에 맞는 패킷으로 만든다.
+/// 청취자별로 순번을 매겨 패킷을 만든다.
 pub struct Packetizer {
     seq: u16,
     max_payload: usize,
@@ -21,23 +21,13 @@ impl Packetizer {
         Self { seq: 0, max_payload: max_packet.saturating_sub(HEADER_LEN).max(1) }
     }
 
-    /// framed 코덱은 조각 하나를 패킷 하나로 (MTU보다 크면 못 보내므로 버림),
-    /// 아니면 MTU에 맞게 잘라서 여러 패킷으로.
-    pub fn packets(&mut self, codec: Codec, data: &[u8]) -> Vec<Vec<u8>> {
-        let parts: Vec<&[u8]> = if codec.framed() {
-            if data.len() > self.max_payload {
-                println!(
-                    "[packet] 프레임 {}B가 MTU 여유 {}B보다 커서 버림",
-                    data.len(),
-                    self.max_payload
-                );
-                return Vec::new();
-            }
-            vec![data]
-        } else {
-            data.chunks(self.max_payload).collect()
-        };
-        parts.into_iter().map(|part| self.packet(codec.id(), part)).collect()
+    /// 프레임 하나 = 패킷 하나. MTU보다 크면 못 보내므로 버린다 (None).
+    pub fn packet_for(&mut self, codec: Codec, frame: &[u8]) -> Option<Vec<u8>> {
+        if frame.len() > self.max_payload {
+            println!("[packet] 프레임 {}B가 MTU 여유 {}B보다 커서 버림", frame.len(), self.max_payload);
+            return None;
+        }
+        Some(self.packet(codec.id(), frame))
     }
 
     /// 제어 메시지 패킷 (cmd = CONTROL_STOP 등)
@@ -61,19 +51,24 @@ mod tests {
     use super::*;
 
     #[test]
-    fn packets_have_header_and_fit() {
+    fn packet_has_header() {
         let mut p = Packetizer::new(100);
-        let pk = p.packets(Codec::Ulaw16kMono, &[7u8; 250]);
-        assert_eq!(pk.len(), 3);
-        assert!(pk.iter().all(|x| x.len() <= 100));
-        assert_eq!(&pk[2][..4], &[1, 5, 2, 0]);
-        assert_eq!(pk.iter().map(|x| x.len() - HEADER_LEN).sum::<usize>(), 250);
+        p.packet_for(Codec::OpusStereo64k, &[7u8; 10]);
+        let pk = p.packet_for(Codec::OpusStereo128k, &[7u8; 96]).unwrap();
+        assert_eq!(&pk[..4], &[1, 2, 1, 0]);
+        assert_eq!(pk.len(), 100);
+    }
+
+    #[test]
+    fn oversized_frame_is_dropped() {
+        let mut p = Packetizer::new(100);
+        assert_eq!(p.packet_for(Codec::OpusStereo64k, &[0u8; 97]), None);
     }
 
     #[test]
     fn control_packet_continues_seq() {
         let mut p = Packetizer::new(100);
-        p.packets(Codec::Ulaw16kMono, &[0u8; 10]);
+        p.packet_for(Codec::OpusStereo64k, &[0u8; 10]);
         assert_eq!(p.control(CONTROL_STOP), vec![1, CONTROL, 1, 0, CONTROL_STOP]);
     }
 }

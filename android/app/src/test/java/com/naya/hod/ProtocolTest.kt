@@ -7,14 +7,11 @@ import org.junit.Test
 // PC의 codec.rs 테스트와 같은 값으로 양쪽 형식이 맞는지 확인
 class ProtocolTest {
     @Test
-    fun parsesHeaderAndDecodesUlaw() {
-        val p = Protocol.parse(byteArrayOf(1, 1, 0x34, 0x12, 0xFF.toByte(), 0x80.toByte(), 0x00))!!
+    fun parsesHeader() {
+        val p = Protocol.parse(byteArrayOf(1, 2, 0x34, 0x12, 7, 8))!!
         assertEquals(0x1234, p.seq)
-        assertEquals(Codecs.ULAW_16K_MONO, p.codec)
-        val pcm = Codecs.decoder(p.codec)!!.decode(p.data, Protocol.HEADER_LEN)
-        assertEquals(0, pcm[0].toInt())        // 0xFF = 무음
-        assertEquals(32124, pcm[1].toInt())    // 0x80 = 최대 +
-        assertEquals(-32124, pcm[2].toInt())   // 0x00 = 최대 -
+        assertEquals(Codecs.OPUS_128K_STEREO, p.codec)
+        assertEquals(listOf<Byte>(7, 8), p.data.drop(Protocol.HEADER_LEN))
     }
 
     @Test

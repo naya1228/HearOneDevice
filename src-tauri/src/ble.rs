@@ -137,7 +137,7 @@ async fn listener_loop(
     let addr = writer.device_address();
     // ATT 헤더 3바이트 제외, 속성 최대 길이 512
     let mut packetizer = Packetizer::new(writer.mtu().saturating_sub(3).clamp(20, 512));
-    'outer: loop {
+    loop {
         let received = tokio::select! {
             r = rx.recv() => r,
             // stop 값은 false → true 로 한 번만 바뀐다
@@ -155,11 +155,10 @@ async fn listener_loop(
             }
             Err(broadcast::error::RecvError::Closed) => break,
         };
-        for packet in packetizer.packets(enc.codec, &enc.data) {
-            if let Err(e) = writer.write_all(&packet).await {
-                println!("[ble] {addr} 연결 끊김: {e}");
-                break 'outer;
-            }
+        let Some(packet) = packetizer.packet_for(enc.codec, &enc.data) else { continue };
+        if let Err(e) = writer.write_all(&packet).await {
+            println!("[ble] {addr} 연결 끊김: {e}");
+            break;
         }
     }
     count.fetch_sub(1, Ordering::Relaxed);

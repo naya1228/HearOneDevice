@@ -4,17 +4,17 @@ PC → 폰으로 보내는 소리 형식 목록입니다. 패킷 헤더 두 번�
 
 ## 구현된 코덱
 
-| 번호 | 이름 | 샘플레이트 | 채널 | 샘플당 | 대역폭 | PC 인코더 | 앱 디코더 | 비고 |
-|---|---|---|---|---|---|---|---|---|
-| **1** | Opus 48kHz 스테레오 128kbps | 48 kHz | 스테레오 | 가변 | 16 KB/s | `src-tauri/src/codec/opus.rs` | `Codecs.kt` `OpusStereo` (MediaCodec) | **기본값.** 20ms 프레임, 최대 480B. 2026-10-05 S25 확인 |
-| **2** | Opus 48kHz 스테레오 64kbps | 48 kHz | 스테레오 | 가변 | 8 KB/s | `src-tauri/src/codec/opus.rs` | `Codecs.kt` `OpusStereo` (MediaCodec) | 20ms 프레임, 최대 480B. 2026-10-05 S25 확인 |
-| **3** | ADPCM 32kHz 스테레오 | 32 kHz | 스테레오 | 4 bit | 약 33 KB/s | `src-tauri/src/codec/adpcm.rs` | `Codecs.kt` `AdpcmStereo` | 10ms 프레임 332B → MTU 335 이상 필요. 2026-10-05 S25 확인 (손실 0) |
-| **4** | ADPCM 48kHz 스테레오 | 48 kHz | 스테레오 | 4 bit | 약 49 KB/s | `src-tauri/src/codec/adpcm.rs` | `Codecs.kt` `AdpcmStereo` | 10ms 프레임 492B → MTU 495 이상 필요. 2026-10-05 S25 확인 (손실 0) |
-| **5** | μ-law 16kHz 모노 | 16 kHz | 모노 | 8 bit | 16 KB/s | `src-tauri/src/codec/ulaw.rs` | `Codecs.kt` `Ulaw16kMono` | 2026-10-01 S25 실기기 확인 (손실 0) |
+| 번호 | 이름 | 샘플레이트 | 채널 | 대역폭 | 비고 |
+|---|---|---|---|---|---|
+| **1** | Opus 48kHz 스테레오 64kbps | 48 kHz | 스테레오 | 8 KB/s | **기본값.** 전파를 덜 써서 혼잡한 곳(학교 등)에서 유리 |
+| **2** | Opus 48kHz 스테레오 128kbps | 48 kHz | 스테레오 | 16 KB/s | 음질 우선 옵션. 2026-10-05 S25 2~3시간 연속 재생 확인 |
+
+- 두 코덱 모두 PC `src-tauri/src/codec/opus.rs`, 앱 `Codecs.kt` `OpusStereo`(MediaCodec). 20ms 프레임 = 패킷 하나, 최대 480B.
+- 비트레이트는 PC 인코더 설정일 뿐이라 앱 디코더는 같습니다.
 
 **0번은 코덱이 아니라 제어 메시지**입니다 ([PROTOCOL.md](PROTOCOL.md) 4절).
 
-번호는 한 번 쓰면 **재사용하지 않습니다**. 실험하다 버린 코덱도 번호는 비워 둡니다.
+앱은 헤더 번호로 디코더를 고르므로, 번호의 뜻을 바꾸면 **PC와 앱을 같이 업데이트**합니다.
 
 ---
 
@@ -32,8 +32,8 @@ PC → 폰으로 보내는 소리 형식 목록입니다. 패킷 헤더 두 번�
 
 1. **PC** `src-tauri/src/codec/`
    - 새 파일(예: `pcm.rs`)에 `Encoder` 트레이트를 구현합니다. 리샘플이 필요하면 `resample::Resampler`를 같이 씁니다.
-   - `mod.rs`의 `Codec`에 번호를 추가하고 `ALL`, `name()`, `framed()`, `encoder()`에 연결합니다.
-   - `framed()`: 프레임 단위 코덱(Opus 등)이면 `true` → 패킷 하나에 프레임 하나로 보냅니다 (`packet.rs`).
+   - `mod.rs`의 `Codec`에 번호를 추가하고 `ALL`, `name()`, `encoder()`에 연결합니다.
+   - `encode()`가 내놓는 조각 하나가 패킷 하나가 됩니다 (`packet.rs`). MTU 여유(최대 508B)보다 크면 버려집니다.
 2. **앱** `Codecs.kt`
    - 같은 번호로 `const val`을 추가하고, `Decoder`(`sampleRate`, `decode`)를 구현한 뒤 `decoder()`에 연결합니다.
 3. **이 표**에 한 줄 추가합니다.
