@@ -31,6 +31,7 @@ class MainActivity : Activity() {
     private lateinit var statusView: TextView
     private lateinit var statsView: TextView
     private lateinit var listenButton: Button
+    private lateinit var historyButton: Button
 
     // 권한을 받는 동안 기다리는 연결 요청
     private var pendingId: String? = null
@@ -69,7 +70,7 @@ class MainActivity : Activity() {
             setOnClickListener { scanQr() }
         }
         listenButton = Button(this).apply { setOnClickListener { toggle() } }
-        val historyButton = Button(this).apply {
+        historyButton = Button(this).apply {
             text = "PC 연결 기록"
             @Suppress("DEPRECATION")
             setOnClickListener { startActivityForResult(Intent(this@MainActivity, HistoryActivity::class.java), REQ_HISTORY) }
@@ -141,9 +142,10 @@ class MainActivity : Activity() {
 
     private fun render(status: String) {
         statusView.text = status
-        // 기록이 없으면 버튼을 숨김 (QR로 먼저 연결해야 기록이 생김. 아무 PC나 찾지 않는다)
+        // 기록이 없으면 QR 스캔 버튼만 (QR로 먼저 연결해야 기록이 생김. 아무 PC나 찾지 않는다)
         val last = SavedPcs.last(this)
         listenButton.visibility = if (AudioService.isRunning || last != null) View.VISIBLE else View.GONE
+        historyButton.visibility = if (last != null) View.VISIBLE else View.GONE
         listenButton.text = if (AudioService.isRunning) "정지" else "마지막 PC(${last?.label})로 듣기"
     }
 
