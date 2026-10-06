@@ -1,5 +1,6 @@
 package com.naya.hod
 
+import java.net.URLDecoder
 import java.util.UUID
 
 // PC와 맞춘 약속 (UUID·광고·패킷·제어 메시지). 값과 규칙은 docs/PROTOCOL.md
@@ -11,10 +12,15 @@ object Protocol {
 
     const val MANUFACTURER_ID = 0xFFFF
 
-    /** QR 링크 hearone://connect?id=1a2b3c4d 에서 번호(16진수 8자리)를 꺼냄 */
-    fun parseLink(link: String?): String? {
-        val m = Regex("""^hearone://connect\?id=([0-9a-fA-F]{8})$""").find(link?.trim() ?: return null)
-        return m?.groupValues?.get(1)?.lowercase()
+    /** QR 링크에서 꺼낸 PC 번호(16진수 8자리)와 이름 (옛 QR엔 이름이 없음) */
+    data class Link(val id: String, val name: String?)
+
+    /** hearone://connect?id=1a2b3c4d&name=... */
+    fun parseLink(link: String?): Link? {
+        val m = Regex("""^hearone://connect\?id=([0-9a-fA-F]{8})(?:&name=([^&]*))?$""").find(link?.trim() ?: return null)
+            ?: return null
+        val name = m.groupValues[2].takeIf { it.isNotEmpty() }?.let { runCatching { URLDecoder.decode(it, "UTF-8") }.getOrNull() }
+        return Link(m.groupValues[1].lowercase(), name)
     }
 
     fun idBytes(hex: String): ByteArray = ByteArray(4) { hex.substring(it * 2, it * 2 + 2).toInt(16).toByte() }

@@ -145,7 +145,7 @@ class AudioService : Service() {
         lastSeq = -1
         unknownCodec = 0
         val id = targetId
-        setStatus(if (id != null) "PC $id 찾는 중..." else "PC 찾는 중...")
+        setStatus("${pcLabel()} 찾는 중...")
         val filter = ScanFilter.Builder().setServiceUuid(ParcelUuid(Protocol.SERVICE_UUID)).apply {
             // QR로 받은 번호를 광고에 싣고 있는 PC만
             if (id != null) setManufacturerData(Protocol.MANUFACTURER_ID, Protocol.idBytes(id))
@@ -169,8 +169,8 @@ class AudioService : Service() {
             result.scanRecord?.getManufacturerSpecificData(Protocol.MANUFACTURER_ID)
                 ?.takeIf { it.size == 4 }
                 ?.joinToString("") { "%02x".format(it) }
-                ?.let { targetId = it; MainActivity.saveLastPc(this@AudioService, it) }
-            setStatus("PC ${targetId ?: ""} 발견, 연결 중...")
+                ?.let { targetId = it; SavedPcs.remember(this@AudioService, it, null) }
+            setStatus("${pcLabel()} 발견, 연결 중...")
             gatt = result.device.connectGatt(
                 this@AudioService, false, gattCallback, BluetoothDevice.TRANSPORT_LE
             )
@@ -230,7 +230,7 @@ class AudioService : Service() {
 
         override fun onDescriptorWrite(g: BluetoothGatt, d: BluetoothGattDescriptor, status: Int) {
             playing = status == BluetoothGatt.GATT_SUCCESS
-            setStatus(if (playing) "PC ${targetId ?: ""} 연결됨" else "구독 실패 (코드 $status)")
+            setStatus(if (playing) "${pcLabel()} 연결됨" else "구독 실패 (코드 $status)")
         }
 
         // ---------- 3. 소리 받기 ----------
@@ -306,7 +306,7 @@ class AudioService : Service() {
             if (unknownCodec != 0) {
                 setStatus("PC가 보낸 코덱 ${unknownCodec}번을 이 앱이 모름. 앱 업데이트 필요 (docs/CODECS.md)", updateNotification = false)
             } else if (playing && dec != null && p != null) {
-                setStatus("PC ${targetId ?: "?"} 재생 중", updateNotification = false)
+                setStatus("${pcLabel()} 재생 중", updateNotification = false)
                 val kb = bytesThisSecond / 1024.0
                 detail = "코덱 ${dec.id} ${dec.name} · MTU $mtu · %.1f KB/s\n버퍼 %dms (+재생장치 %dms) · 손실 %d · 끊김 %d회 · 버림 %dms".format(
                     kb, p.bufferedMs, p.trackMs, lost, p.underruns, p.droppedMs
@@ -316,6 +316,12 @@ class AudioService : Service() {
             bytesThisSecond = 0
             handler.postDelayed(this, 1000)
         }
+    }
+
+    // 화면에 보일 PC 이름. 기록에 이름이 있으면 이름만 (번호는 감춤)
+    private fun pcLabel(): String {
+        val id = targetId ?: return "PC"
+        return SavedPcs.find(this, id)?.name?.ifBlank { null } ?: "PC $id"
     }
 
     private fun setStats(text: String?) {

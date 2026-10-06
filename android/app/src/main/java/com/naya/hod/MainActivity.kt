@@ -19,20 +19,13 @@ import com.google.mlkit.vision.codescanner.GmsBarcodeScannerOptions
 import com.google.mlkit.vision.codescanner.GmsBarcodeScanning
 
 /**
- * 시작/정지, QR 스캔 버튼과 상태 표시만 있는 화면. 실제 일은 AudioService가 한다.
- * PC의 QR(hearone://connect?id=...)은 앱 안 스캐너로 찍거나, 폰 카메라로 찍어 이 화면을 열 수 있다.
+ * 시작/정지, QR 스캔, PC 연결 기록 버튼과 상태 표시만 있는 화면. 실제 일은 AudioService가 한다.
+ * PC의 QR(docs/PROTOCOL.md 1절)은 앱 안 스캐너로 찍거나, 폰 카메라로 찍어 이 화면을 열 수 있다.
  */
 class MainActivity : Activity() {
 
     companion object {
-        private const val PREFS = "hod"
-        private const val KEY_LAST_PC = "last_pc"
-
-        fun saveLastPc(ctx: Context, id: String) =
-            ctx.getSharedPreferences(PREFS, MODE_PRIVATE).edit().putString(KEY_LAST_PC, id).apply()
-
-        fun lastPc(ctx: Context): String? =
-            ctx.getSharedPreferences(PREFS, MODE_PRIVATE).getString(KEY_LAST_PC, null)
+        private const val REQ_HISTORY = 1
     }
 
     private lateinit var statusView: TextView
@@ -76,6 +69,11 @@ class MainActivity : Activity() {
             setOnClickListener { scanQr() }
         }
         listenButton = Button(this).apply { setOnClickListener { toggle() } }
+        val historyButton = Button(this).apply {
+            text = "PC 연결 기록"
+            @Suppress("DEPRECATION")
+            setOnClickListener { startActivityForResult(Intent(this@MainActivity, HistoryActivity::class.java), REQ_HISTORY) }
+        }
         statusView = TextView(this).apply {
             setTextColor(Color.rgb(0xFD, 0x60, 0x00))
             setPadding(0, 48, 0, 0)
@@ -103,6 +101,10 @@ class MainActivity : Activity() {
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT,
             ).apply { topMargin = (16 * resources.displayMetrics.density).toInt() })
+            addView(historyButton, LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+            ))
             addView(statusView)
             addView(statsView)
         })
@@ -139,18 +141,24 @@ class MainActivity : Activity() {
 
     private fun render(status: String) {
         statusView.text = status
-        val last = lastPc(this)
+        val last = SavedPcs.last(this)
         listenButton.text = when {
             AudioService.isRunning -> "정지"
-            last != null -> "마지막 PC($last)로 듣기"
+            last != null -> "마지막 PC(${last.label})로 듣기"
             else -> "가까운 PC로 듣기"
         }
     }
 
     private fun handleLink(intent: Intent?) {
-        val id = Protocol.parseLink(intent?.dataString) ?: return
+        val link = Protocol.parseLink(intent?.dataString) ?: return
         intent?.data = null // 화면 회전 등으로 다시 처리되지 않게
-        connect(id)
+        connectLink(link)
+    }
+
+    // QR로 받은 PC를 기록에 넣고 연결
+    private fun connectLink(link: Protocol.Link) {
+        SavedPcs.remember(this, link.id, link.name)
+        connect(link.id)
     }
 
     private fun scanQr() {
@@ -159,8 +167,8 @@ class MainActivity : Activity() {
             .build()
         GmsBarcodeScanning.getClient(this, options).startScan()
             .addOnSuccessListener { code ->
-                val id = Protocol.parseLink(code.rawValue)
-                if (id != null) connect(id) else render("HearOneDevice QR이 아니에요")
+                val link = Protocol.parseLink(code.rawValue)
+                if (link != null) connectLink(link) else render("HearOneDevice QR이 아니에요")
             }
             .addOnFailureListener { render("QR 스캐너를 열 수 없어요: ${it.message}") }
     }
@@ -169,8 +177,17 @@ class MainActivity : Activity() {
         if (AudioService.isRunning) {
             startService(Intent(this, AudioService::class.java).setAction(AudioService.ACTION_STOP))
         } else {
-            connect(lastPc(this))
+            connect(SavedPcs.last(this)?.id)
         }
+    }
+
+    // PC 연결 기록에서 고른 PC로 연결
+    @Deprecated("Activity 기본 API")
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        @Suppress("DEPRECATION")
+        super.onActivityResult(requestCode, resultCode, data)
+        val id = data?.getStringExtra(HistoryActivity.EXTRA_ID)
+        if (requestCode == REQ_HISTORY && resultCode == RESULT_OK && id != null) connect(id)
     }
 
     /** id가 null이면 처음 발견한 PC에 연결 */
@@ -181,7 +198,7 @@ class MainActivity : Activity() {
             requestPermissions(missing.toTypedArray(), 1)
             return
         }
-        if (id != null) saveLastPc(this, id)
+        if (id != null) SavedPcs.remember(this, id, null)
         startForegroundService(
             Intent(this, AudioService::class.java)
                 .setAction(AudioService.ACTION_START)

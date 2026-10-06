@@ -7,6 +7,7 @@ pub mod ble;
 pub mod capture;
 pub mod codec;
 pub mod encoding;
+pub mod link;
 
 use codec::Codec;
 use serde::Serialize;
@@ -24,6 +25,8 @@ struct Sharing {
 struct AppState {
     sharing: Mutex<Option<Sharing>>,
     id: ble::DeviceId,
+    /// QR에 싣는 PC 이름
+    name: String,
     /// 지금 고른 코덱. 공유 중에 바꾸면 인코더가 다음 조각부터 따라간다
     codec: watch::Sender<Codec>,
 }
@@ -32,7 +35,7 @@ struct AppState {
 struct Status {
     running: bool,
     listeners: usize,
-    /// 폰이 QR로 읽는 연결 주소 (android 의 MainActivity 딥링크와 같아야 함)
+    /// 폰이 QR로 읽는 연결 주소 (docs/PROTOCOL.md 1절)
     link: String,
     /// 지금 고른 코덱 번호
     codec: u8,
@@ -93,7 +96,7 @@ async fn sharing_status(state: State<'_, AppState>) -> Result<Status, String> {
     Ok(Status {
         running: guard.is_some(),
         listeners: guard.as_ref().map_or(0, |s| s.ble.listeners()),
-        link: format!("hearone://connect?id={}", ble::device_id_hex(&state.id)),
+        link: link::connect_link(&state.id, &state.name),
         codec: state.codec.borrow().id(),
     })
 }
@@ -120,6 +123,7 @@ pub fn run() {
             app.manage(AppState {
                 sharing: Mutex::new(None),
                 id: load_device_id(dir),
+                name: link::pc_name(),
                 codec: watch::channel(Codec::DEFAULT).0,
             });
             Ok(())
