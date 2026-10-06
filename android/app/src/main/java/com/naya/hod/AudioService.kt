@@ -47,6 +47,9 @@ class AudioService : Service() {
         @Volatile var status = "정지됨"; private set
         /** 화면에 상태를 보여주기 위한 콜백 (MainActivity가 등록) */
         @Volatile var onStatus: ((String) -> Unit)? = null
+        /** 재생 중 상세 숫자 (코덱·MTU·버퍼·손실 등). 재생 중이 아니면 null. 개발 모드에서만 화면에 보임 */
+        @Volatile var stats: String? = null; private set
+        @Volatile var onStats: ((String?) -> Unit)? = null
         /** 재생 중인 소리 (MainActivity의 비주얼라이저가 읽음) */
         val tap = AudioTap()
     }
@@ -123,6 +126,7 @@ class AudioService : Service() {
         wakeLock?.let { if (it.isHeld) it.release() }
         wakeLock = null
         playing = false
+        setStats(null)
         setStatus("정지됨")
         stopForeground(STOP_FOREGROUND_REMOVE)
         stopSelf()
@@ -226,7 +230,7 @@ class AudioService : Service() {
 
         override fun onDescriptorWrite(g: BluetoothGatt, d: BluetoothGattDescriptor, status: Int) {
             playing = status == BluetoothGatt.GATT_SUCCESS
-            setStatus(if (playing) "PC ${targetId ?: ""} 연결됨 (MTU $mtu)" else "구독 실패 (코드 $status)")
+            setStatus(if (playing) "PC ${targetId ?: ""} 연결됨" else "구독 실패 (코드 $status)")
         }
 
         // ---------- 3. 소리 받기 ----------
@@ -298,20 +302,26 @@ class AudioService : Service() {
         override fun run() {
             val dec = decoder
             val p = player
+            var detail: String? = null
             if (unknownCodec != 0) {
                 setStatus("PC가 보낸 코덱 ${unknownCodec}번을 이 앱이 모름. 앱 업데이트 필요 (docs/CODECS.md)", updateNotification = false)
             } else if (playing && dec != null && p != null) {
+                setStatus("PC ${targetId ?: "?"} 재생 중", updateNotification = false)
                 val kb = bytesThisSecond / 1024.0
-                setStatus(
-                    "PC ${targetId ?: "?"} 재생 중 · 코덱 ${dec.id} ${dec.name} · MTU $mtu · %.1f KB/s\n버퍼 %dms (+재생장치 %dms) · 손실 %d · 끊김 %d회 · 버림 %dms".format(
-                        kb, p.bufferedMs, p.trackMs, lost, p.underruns, p.droppedMs
-                    ),
-                    updateNotification = false,
+                detail = "코덱 ${dec.id} ${dec.name} · MTU $mtu · %.1f KB/s\n버퍼 %dms (+재생장치 %dms) · 손실 %d · 끊김 %d회 · 버림 %dms".format(
+                    kb, p.bufferedMs, p.trackMs, lost, p.underruns, p.droppedMs
                 )
             }
+            setStats(detail)
             bytesThisSecond = 0
             handler.postDelayed(this, 1000)
         }
+    }
+
+    private fun setStats(text: String?) {
+        if (text == stats) return
+        stats = text
+        onStats?.invoke(text)
     }
 
     private fun setStatus(text: String, updateNotification: Boolean = true) {

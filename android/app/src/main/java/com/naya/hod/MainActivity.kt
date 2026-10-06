@@ -9,9 +9,11 @@ import android.graphics.Color
 import android.os.Build
 import android.os.Bundle
 import android.view.Gravity
+import android.view.View
 import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.TextView
+import android.widget.Toast
 import com.google.mlkit.vision.barcode.common.Barcode
 import com.google.mlkit.vision.codescanner.GmsBarcodeScannerOptions
 import com.google.mlkit.vision.codescanner.GmsBarcodeScanning
@@ -34,6 +36,7 @@ class MainActivity : Activity() {
     }
 
     private lateinit var statusView: TextView
+    private lateinit var statsView: TextView
     private lateinit var listenButton: Button
 
     // 권한을 받는 동안 기다리는 연결 요청 (null 이면 마지막 PC)
@@ -57,6 +60,11 @@ class MainActivity : Activity() {
             text = "HearOneDevice"
             textSize = 28f
             setTextColor(Color.WHITE)
+            setOnClickListener {
+                val on = DevMode.onTap(this@MainActivity) ?: return@setOnClickListener
+                Toast.makeText(this@MainActivity, if (on) "개발 모드 켜짐" else "개발 모드 꺼짐", Toast.LENGTH_SHORT).show()
+                renderStats(AudioService.stats)
+            }
         }
         val hint = TextView(this).apply {
             text = "PC 앱에서 '공유 시작'을 누르고 화면의 QR을 찍으세요."
@@ -71,6 +79,12 @@ class MainActivity : Activity() {
         statusView = TextView(this).apply {
             setTextColor(Color.rgb(0xFD, 0x60, 0x00))
             setPadding(0, 48, 0, 0)
+            gravity = Gravity.CENTER
+        }
+        statsView = TextView(this).apply {
+            setTextColor(Color.GRAY)
+            textSize = 12f
+            setPadding(0, 16, 0, 0)
             gravity = Gravity.CENTER
         }
         setContentView(LinearLayout(this).apply {
@@ -90,6 +104,7 @@ class MainActivity : Activity() {
                 LinearLayout.LayoutParams.WRAP_CONTENT,
             ).apply { topMargin = (16 * resources.displayMetrics.density).toInt() })
             addView(statusView)
+            addView(statsView)
         })
 
         handleLink(intent)
@@ -104,12 +119,22 @@ class MainActivity : Activity() {
     override fun onResume() {
         super.onResume()
         AudioService.onStatus = { s -> runOnUiThread { render(s) } }
+        AudioService.onStats = { s -> runOnUiThread { renderStats(s) } }
         render(AudioService.status)
+        renderStats(AudioService.stats)
     }
 
     override fun onPause() {
         AudioService.onStatus = null
+        AudioService.onStats = null
         super.onPause()
+    }
+
+    // 상세 숫자는 개발 모드일 때만
+    private fun renderStats(stats: String?) {
+        val show = stats != null && DevMode.isOn(this)
+        statsView.text = if (show) stats else ""
+        statsView.visibility = if (show) View.VISIBLE else View.GONE
     }
 
     private fun render(status: String) {
