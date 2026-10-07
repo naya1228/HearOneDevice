@@ -155,10 +155,16 @@ class MainActivity : Activity() {
         connectLink(link)
     }
 
-    // QR로 받은 PC를 기록에 넣고 연결
+    // QR로 받은 PC를 기록에 넣고 연결. 주소·열쇠가 없는 QR은 거절 (docs/PROTOCOL.md 1절)
     private fun connectLink(link: Protocol.Link) {
-        SavedPcs.remember(this, link.id, link.name)
-        connect(link.id)
+        when {
+            link.key == null -> render("PC 앱이 옛 버전이에요. PC 앱을 업데이트해 주세요")
+            link.addr == null -> render("PC 블루투스 주소를 못 읽었어요. PC 블루투스를 켜고 QR을 다시 찍어 주세요")
+            else -> {
+                SavedPcs.remember(this, link)
+                connect(link.id)
+            }
+        }
     }
 
     private fun scanQr() {
@@ -191,13 +197,17 @@ class MainActivity : Activity() {
     }
 
     private fun connect(id: String) {
+        if (SavedPcs.find(this, id)?.canConnect != true) {
+            render("이 PC는 QR을 다시 찍어야 해요 (연결 방식이 바뀜)")
+            return
+        }
         val missing = permissions.filter { checkSelfPermission(it) != PackageManager.PERMISSION_GRANTED }
         if (missing.isNotEmpty()) {
             pendingId = id
             requestPermissions(missing.toTypedArray(), 1)
             return
         }
-        SavedPcs.remember(this, id, null)
+        SavedPcs.touch(this, id)
         startForegroundService(
             Intent(this, AudioService::class.java)
                 .setAction(AudioService.ACTION_START)

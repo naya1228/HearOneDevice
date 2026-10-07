@@ -151,9 +151,15 @@ class AudioService : Service() {
         unknownCodec = 0
         val id = targetId ?: return
         setStatus("${pcLabel()} 찾는 중...")
-        // 이 번호를 서비스 데이터에 싣고 있는 PC만
+        // QR로 받은 주소에서 우리 서비스를 광고하는 PC만 (docs/PROTOCOL.md 1절)
+        val addr = SavedPcs.find(this, id)?.addr?.ifEmpty { null } ?: run {
+            stopAll()
+            setStatus("이 PC는 QR을 다시 찍어야 해요")
+            return
+        }
         val filter = ScanFilter.Builder()
-            .setServiceData(ParcelUuid(Protocol.SERVICE_UUID), Protocol.idBytes(id))
+            .setDeviceAddress(addr)
+            .setServiceUuid(ParcelUuid(Protocol.SERVICE_UUID))
             .build()
         val settings = ScanSettings.Builder().setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY).build()
         scanner.startScan(listOf(filter), settings, scanCallback)
