@@ -22,7 +22,12 @@ function SharePanel({ running, listeners, link }: Props) {
   return (
     <div className="flex flex-col items-center gap-3 text-center">
       <div className="bg-white p-3 rounded-lg">
-        <QRCode value={link} size={150} />
+        <QRCode
+          value={link}
+          size={256}
+          viewBox="0 0 256 256"
+          style={{ width: "clamp(120px, 25vh, 280px)", height: "auto" }}
+        />
       </div>
       <p className="text-gray-400 text-sm">폰 앱이나 카메라로 QR을 찍으면 연결됩니다</p>
       <p className={`flex items-center gap-2 ${connected ? "text-green-400" : "text-[#FD6000]"}`}>

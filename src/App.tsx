@@ -50,7 +50,7 @@ function App() {
   };
 
   return (
-    <main className="flex flex-col bg-[#1F1F1E] p-4 gap-4 h-dvh">
+    <main className="flex flex-col p-4 gap-4 min-h-dvh w-full max-w-md mx-auto">
       <header className="flex items-center gap-3">
         <img className="w-16" src="sharing.svg" />
         <div>
