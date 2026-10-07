@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import "./App.css";
 import Button from "./components/Button";
 import { invoke } from "@tauri-apps/api/core";
-import QRCode from "react-qr-code";
+import SharePanel from "./components/SharePanel";
 
 type Status = { running: boolean; listeners: number; link: string; name: string; codec: number };
 type CodecInfo = { id: number; name: string };
@@ -50,43 +50,50 @@ function App() {
   };
 
   return (
-    <main className="flex flex-col bg-[#1F1F1E] items-center p-3 h-dvh">
-      <img className="rounded-md w-32 mt-4" src="sharing.svg" />
-      <span className="text-white text-4xl font-bold m-2">HearOneDevice</span>
-      <p className="text-gray-500">PC 소리를 블루투스로 폰에 보냅니다</p>
-      <p className="text-gray-400 text-sm mb-6">이 PC 이름: {status.name}</p>
+    <main className="flex flex-col bg-[#1F1F1E] p-4 gap-4 h-dvh">
+      <header className="flex items-center gap-3">
+        <img className="w-16" src="sharing.svg" />
+        <div>
+          <h1 className="text-white text-xl font-bold">HearOneDevice</h1>
+          <p className="text-gray-500 text-sm">PC 소리를 블루투스로 폰에 보냅니다</p>
+        </div>
+      </header>
 
-      <Button type="button" onClick={busy ? undefined : toggle}>
+      <section className="flex-1 flex items-center justify-center bg-[#262625] rounded-xl p-4">
+        <SharePanel running={status.running} listeners={status.listeners} link={status.link} />
+      </section>
+
+      <section className="bg-[#262625] rounded-xl divide-y divide-[#333332] text-sm">
+        <div className="flex items-center justify-between px-4 py-2.5">
+          <span className="text-gray-400">이 PC 이름</span>
+          <span className="text-white">{status.name}</span>
+        </div>
+        <label className="flex items-center justify-between px-4 py-2">
+          <span className="text-gray-400">코덱</span>
+          <select
+            className="bg-[#333332] text-white rounded-md px-2 py-1"
+            value={status.codec}
+            onChange={(e) => changeCodec(Number(e.target.value))}
+          >
+            {codecs.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.id}. {c.name}
+              </option>
+            ))}
+          </select>
+        </label>
+      </section>
+
+      {error && <p className="text-red-400 text-sm text-center break-all">{error}</p>}
+
+      <Button
+        type="button"
+        variant={status.running ? "secondary" : "primary"}
+        disabled={busy}
+        onClick={toggle}
+      >
         {busy ? "..." : status.running ? "공유 중지" : "공유 시작"}
       </Button>
-
-      <label className="flex items-center gap-2 mt-4 text-gray-400 text-sm">
-        코덱
-        <select
-          className="bg-[#2A2A29] text-white rounded-md px-2 py-1"
-          value={status.codec}
-          onChange={(e) => changeCodec(Number(e.target.value))}
-        >
-          {codecs.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.id}. {c.name}
-            </option>
-          ))}
-        </select>
-      </label>
-
-      {status.running && (
-        <div className="flex flex-col items-center gap-2 mt-6">
-          <div className="bg-white p-3 rounded-md">
-            <QRCode value={status.link} size={160} />
-          </div>
-          <p className="text-gray-400 text-sm">폰 앱이나 카메라로 QR을 찍으면 연결됩니다</p>
-          <p className="text-[#FD6000]">
-            {status.listeners > 0 ? `폰 ${status.listeners}대 연결됨` : "연결 기다리는 중..."}
-          </p>
-        </div>
-      )}
-      {error && <p className="text-red-400 text-sm mt-4 max-w-sm text-center break-all">{error}</p>}
     </main>
   );
 }
