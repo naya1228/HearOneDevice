@@ -44,6 +44,10 @@ class AudioService : Service() {
         private const val NOTIFICATION_ID = 1
         // PC는 5초 안에 답이 없으면 실패로 봄 (docs/PROTOCOL.md 5절). 폰은 여유를 두고 기다림
         private const val AUTH_TIMEOUT_MS = 10_000L
+        // QR 주소의 광고를 이만큼 먼저 기다린 뒤, 없으면 다른 HearOne PC에 붙어 확인으로 가림 (docs/PROTOCOL.md 1절)
+        private const val PREFER_QR_MS = 1500L
+        // 확인에 이만큼 연속으로 떨어지면 내 PC가 근처에 없거나 열쇠가 바뀐 것으로 보고 멈춤
+        private const val MAX_REJECTIONS = 5
 
         @Volatile var isRunning = false; private set
         @Volatile var status = "정지됨"; private set
@@ -65,6 +69,15 @@ class AudioService : Service() {
     private var wakeLock: PowerManager.WakeLock? = null
     private var scanning = false
     private var targetId: String? = null
+    // 이번 듣기에서 확인에 떨어진 PC 주소들 (남의 PC). 주소가 바뀌면 다시 시도될 수 있음
+    private val rejected = mutableSetOf<String>()
+    private var rejections = 0
+    // 지금 연결 중인 PC 주소, QR 주소가 아닌 첫 후보
+    private var connectingAddr: String? = null
+    private var candidate: BluetoothDevice? = null
+    private var preferQrOver = false
+    // 확인에 떨어져 끊는 중이면 끊김 문구를 덮어쓰지 않음
+    private var leavingRejected = false
     // 연결 확인 (docs/PROTOCOL.md 5·6절). GATT 콜백 스레드에서만 바꿈 (패킷 순서대로 처리하려고)
     @Volatile private var auth: Auth? = null
     // 확인 통과 뒤에만 있음. 이때부터 잠긴 패킷만 받고, 통과 전에 온 소리는 버림
