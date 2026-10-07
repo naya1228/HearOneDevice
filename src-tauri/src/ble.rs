@@ -1,29 +1,36 @@
 // BLE 송신 (Linux/BlueZ). PC가 광고(peripheral)하고 폰 앱이 찾아와 구독(central)한다.
-// 인코딩된 데이터(encoding.rs)를 받아, 구독한 폰마다 notify로 패킷을 계속 밀어 보낸다.
+// 인코딩된 데이터(encoding.rs)를 받아, 구독한 폰마다 열쇠 확인을 거친 뒤 notify로 패킷을 계속 밀어 보낸다.
 
-use crate::auth::Key;
-use crate::codec::packet::{Packetizer, CONTROL_STOP};
+use crate::auth::{Handshake, Key, REPLY_TIMEOUT};
+use crate::codec::packet::{
+    Packetizer, CONTROL_AUTH_FAIL, CONTROL_AUTH_OK, CONTROL_CHALLENGE, CONTROL_STOP,
+};
 use crate::device_id::{device_id_hex, DeviceId};
-use crate::encoding::{Encoded, EncodedTx};
+use crate::encoding::EncodedTx;
 use bluer::{
     adv::{Advertisement, AdvertisementHandle},
     gatt::local::{
         characteristic_control, Application, ApplicationHandle, Characteristic,
-        CharacteristicControlEvent, CharacteristicNotify, CharacteristicNotifyMethod, Service,
+        CharacteristicControlEvent, CharacteristicNotify, CharacteristicNotifyMethod,
+        CharacteristicWrite, CharacteristicWriteMethod, Service,
     },
     gatt::CharacteristicWriter,
-    Uuid,
+    Address, Uuid,
 };
-use futures_util::StreamExt;
+use futures_util::{FutureExt, StreamExt};
+use std::collections::HashMap;
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use tokio::io::AsyncWriteExt;
-use tokio::sync::{broadcast, watch};
+use tokio::sync::{broadcast, mpsc, watch};
 use tokio::task::JoinSet;
 
 // UUID·광고 형식은 docs/PROTOCOL.md
 pub const SERVICE_UUID: Uuid = Uuid::from_u128(0x5e7a0001_3c1b_4f6e_9d2a_7b1c0e5a9f10);
 pub const AUDIO_CHAR_UUID: Uuid = Uuid::from_u128(0x5e7a0002_3c1b_4f6e_9d2a_7b1c0e5a9f10);
+
+/// 폰마다(블루투스 주소) 그 폰이 쓴 바이트를 받는 청취자 쪽 통로
+type Inboxes = Arc<Mutex<HashMap<Address, mpsc::UnboundedSender<Vec<u8>>>>>;
 
 /// drop되면 광고·GATT 등록이 해제되고 모든 전송이 멈춘다.
 pub struct BleServer {
@@ -69,8 +76,7 @@ pub async fn adapter_address() -> Result<[u8; 6], String> {
     Ok(adapter.address().await.map_err(|e| e.to_string())?.0)
 }
 
-// 확인 절차(docs/PROTOCOL.md 5절)는 아직 ble_windows.rs에만 있음. key는 그때 쓴다
-pub async fn start(encoded: EncodedTx, id: DeviceId, _key: Key) -> Result<BleServer, String> {
+pub async fn start(encoded: EncodedTx, id: DeviceId, key: Key) -> Result<BleServer, String> {
     let session = bluer::Session::new().await.map_err(|e| format!("BlueZ 연결 실패: {e}"))?;
     let adapter = session
         .default_adapter()
@@ -81,12 +87,22 @@ pub async fn start(encoded: EncodedTx, id: DeviceId, _key: Key) -> Result<BleSer
     let adv = adapter
         .advertise(Advertisement {
             advertisement_type: bluer::adv::Type::Peripheral,
-            service_data: [(SERVICE_UUID, id.to_vec())].into_iter().collect(),
+            service_uuids: [SERVICE_UUID].into_iter().collect(),
             discoverable: Some(true),
             ..Default::default()
         })
         .await
         .map_err(|e| format!("BLE 광고 실패: {e}"))?;
+
+    // 폰이 쓴 바이트(확인 답)는 그 폰의 청취자에게 넘긴다
+    let inboxes: Inboxes = Arc::default();
+    let routes = inboxes.clone();
+    let on_write = move |value: Vec<u8>, req: bluer::gatt::local::CharacteristicWriteRequest| {
+        if let Some(inbox) = routes.lock().unwrap().get(&req.device_address) {
+            let _ = inbox.send(value);
+        }
+        async { Ok(()) }.boxed()
+    };
 
     let (char_control, char_handle) = characteristic_control();
     let app = adapter
@@ -96,6 +112,12 @@ pub async fn start(encoded: EncodedTx, id: DeviceId, _key: Key) -> Result<BleSer
                 primary: true,
                 characteristics: vec![Characteristic {
                     uuid: AUDIO_CHAR_UUID,
+                    // Notify = 소리·제어 패킷, Write = 폰의 확인 답
+                    write: Some(CharacteristicWrite {
+                        write: true,
+                        method: CharacteristicWriteMethod::Fun(Box::new(on_write)),
+                        ..Default::default()
+                    }),
                     notify: Some(CharacteristicNotify {
                         notify: true,
                         method: CharacteristicNotifyMethod::Io,
@@ -120,8 +142,19 @@ pub async fn start(encoded: EncodedTx, id: DeviceId, _key: Key) -> Result<BleSer
         let mut char_control = Box::pin(char_control);
         while let Some(evt) = char_control.next().await {
             if let CharacteristicControlEvent::Notify(writer) = evt {
-                println!("[ble] 구독 시작: {} (MTU {})", writer.device_address(), writer.mtu());
-                set.spawn(listener_loop(writer, encoded.subscribe(), stop_rx.clone(), count.clone()));
+                let addr = writer.device_address();
+                println!("[ble] 구독 시작: {addr} (MTU {})", writer.mtu());
+                let (inbox_tx, inbox_rx) = mpsc::unbounded_channel();
+                inboxes.lock().unwrap().insert(addr, inbox_tx);
+                set.spawn(listener_loop(
+                    writer,
+                    key,
+                    inbox_rx,
+                    inboxes.clone(),
+                    encoded.clone(),
+                    stop_rx.clone(),
+                    count.clone(),
+                ));
             }
         }
     });
@@ -132,14 +165,62 @@ pub async fn start(encoded: EncodedTx, id: DeviceId, _key: Key) -> Result<BleSer
 
 async fn listener_loop(
     mut writer: CharacteristicWriter,
-    mut rx: broadcast::Receiver<Arc<Encoded>>,
-    mut stop: watch::Receiver<bool>,
+    key: Key,
+    inbox: mpsc::UnboundedReceiver<Vec<u8>>,
+    inboxes: Inboxes,
+    encoded: EncodedTx,
+    stop: watch::Receiver<bool>,
     count: Arc<AtomicUsize>,
 ) {
-    count.fetch_add(1, Ordering::Relaxed);
     let addr = writer.device_address();
     // ATT 헤더 3바이트 제외, 속성 최대 길이 512
     let mut packetizer = Packetizer::new(writer.mtu().saturating_sub(3).clamp(20, 512));
+    if authenticate(&mut writer, &mut packetizer, key, inbox).await {
+        count.fetch_add(1, Ordering::Relaxed);
+        send_audio(&mut writer, &mut packetizer, encoded, stop).await;
+        count.fetch_sub(1, Ordering::Relaxed);
+    }
+    inboxes.lock().unwrap().remove(&addr);
+}
+
+/// 열쇠 확인: 문제 → 폰의 답 → PC 증명 (docs/PROTOCOL.md 5절). 통과하면 true
+async fn authenticate(
+    writer: &mut CharacteristicWriter,
+    packetizer: &mut Packetizer,
+    key: Key,
+    mut inbox: mpsc::UnboundedReceiver<Vec<u8>>,
+) -> bool {
+    let addr = writer.device_address();
+    let hs = Handshake::new(key);
+    if let Err(e) = writer.write_all(&packetizer.control_with(CONTROL_CHALLENGE, hs.challenge())).await {
+        println!("[ble] {addr} 연결 끊김: {e}");
+        return false;
+    }
+    let pc_proof = match tokio::time::timeout(REPLY_TIMEOUT, inbox.recv()).await {
+        Ok(Some(reply)) => hs.verify(&reply),
+        _ => None,
+    };
+    let Some(pc_proof) = pc_proof else {
+        let _ = writer.write_all(&packetizer.control(CONTROL_AUTH_FAIL)).await;
+        println!("[ble] {addr} 확인 실패 (열쇠가 다르거나 답이 없음). 소리를 보내지 않음");
+        return false;
+    };
+    if let Err(e) = writer.write_all(&packetizer.control_with(CONTROL_AUTH_OK, &pc_proof)).await {
+        println!("[ble] {addr} 연결 끊김: {e}");
+        return false;
+    }
+    println!("[ble] {addr} 확인 통과");
+    true
+}
+
+async fn send_audio(
+    writer: &mut CharacteristicWriter,
+    packetizer: &mut Packetizer,
+    encoded: EncodedTx,
+    mut stop: watch::Receiver<bool>,
+) {
+    let addr = writer.device_address();
+    let mut rx = encoded.subscribe();
     loop {
         let received = tokio::select! {
             r = rx.recv() => r,
@@ -164,5 +245,4 @@ async fn listener_loop(
             break;
         }
     }
-    count.fetch_sub(1, Ordering::Relaxed);
 }

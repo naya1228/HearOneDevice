@@ -4,5 +4,5 @@
 mod handshake;
 mod key;
 
-pub use handshake::{Handshake, REPLY_LEN};
+pub use handshake::{Handshake, REPLY_LEN, REPLY_TIMEOUT};
 pub use key::{key_hex, load_key, Key};

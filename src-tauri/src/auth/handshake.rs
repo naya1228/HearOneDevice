@@ -5,6 +5,9 @@ use super::key::Key;
 use hmac::{Hmac, Mac};
 use sha2::Sha256;
 
+/// 문제를 낸 뒤 폰의 답을 기다리는 시간
+pub const REPLY_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(5);
+
 const NONCE_LEN: usize = 16;
 const PROOF_LEN: usize = 32;
 const REPLY_VERSION: u8 = 1;

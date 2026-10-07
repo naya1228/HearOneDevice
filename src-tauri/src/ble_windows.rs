@@ -2,7 +2,7 @@
 // 구독한 폰마다 먼저 열쇠를 확인하고(auth), 통과한 폰에만 인코딩된 데이터(encoding.rs)를 notify로 밀어 보낸다.
 // 바깥에서 보는 모양(adapter_address·start·listeners·stop)은 ble.rs(Linux)와 같다.
 
-use crate::auth::{Handshake, Key};
+use crate::auth::{Handshake, Key, REPLY_TIMEOUT};
 use crate::codec::packet::{
     Packetizer, CONTROL_AUTH_FAIL, CONTROL_AUTH_OK, CONTROL_CHALLENGE, CONTROL_STOP,
 };
@@ -28,8 +28,6 @@ use windows::Storage::Streams::{DataReader, DataWriter, IBuffer};
 // UUID·광고 형식은 docs/PROTOCOL.md
 const SERVICE_UUID: GUID = GUID::from_u128(0x5e7a0001_3c1b_4f6e_9d2a_7b1c0e5a9f10);
 const AUDIO_CHAR_UUID: GUID = GUID::from_u128(0x5e7a0002_3c1b_4f6e_9d2a_7b1c0e5a9f10);
-/// 문제를 낸 뒤 폰의 답을 기다리는 시간
-const REPLY_TIMEOUT: Duration = Duration::from_secs(5);
 
 /// 폰마다(장치 ID 문자열) 그 폰이 쓴 바이트를 받는 청취자 쪽 통로
 type Inboxes = Arc<Mutex<HashMap<String, mpsc::UnboundedSender<Vec<u8>>>>>;
