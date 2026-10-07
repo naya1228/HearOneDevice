@@ -31,6 +31,14 @@ class AuthTest {
     }
 
     @Test
+    fun audioKeyAfterChallenge() {
+        val auth = Auth(key, phoneNonce)
+        assertNull(auth.audioKey())
+        auth.reply(pcNonce)
+        assertArrayEquals(Protocol.hexBytes("90de82fa19fcc35801587b8582a6fb07730eefba845edac03b027ff24a417245"), auth.audioKey())
+    }
+
+    @Test
     fun wrongChallengeLength() {
         assertNull(Auth(key, phoneNonce).reply(ByteArray(15)))
     }

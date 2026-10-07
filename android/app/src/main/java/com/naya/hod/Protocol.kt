@@ -29,7 +29,7 @@ object Protocol {
 
     fun hexBytes(hex: String): ByteArray = ByteArray(hex.length / 2) { hex.substring(it * 2, it * 2 + 2).toInt(16).toByte() }
 
-    const val VERSION = 1
+    const val VERSION = 2
     const val HEADER_LEN = 4
 
     const val CONTROL = 0

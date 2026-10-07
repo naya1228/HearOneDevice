@@ -8,7 +8,7 @@ import org.junit.Test
 class ProtocolTest {
     @Test
     fun parsesHeader() {
-        val p = Protocol.parse(byteArrayOf(1, 2, 0x34, 0x12, 7, 8))!!
+        val p = Protocol.parse(byteArrayOf(2, 2, 0x34, 0x12, 7, 8))!!
         assertEquals(0x1234, p.seq)
         assertEquals(Codecs.OPUS_128K_STEREO, p.codec)
         assertEquals(listOf<Byte>(7, 8), p.data.drop(Protocol.HEADER_LEN))
@@ -16,13 +16,14 @@ class ProtocolTest {
 
     @Test
     fun rejectsOtherVersion() {
-        assertNull(Protocol.parse(byteArrayOf(2, 1, 0, 0, 0)))
-        assertNull(Protocol.parse(byteArrayOf(1, 1, 0)))
+        // 1 = 잠그기 전 방식
+        assertNull(Protocol.parse(byteArrayOf(1, 1, 0, 0, 0)))
+        assertNull(Protocol.parse(byteArrayOf(2, 1, 0)))
     }
 
     @Test
     fun unknownCodecHasNoDecoder() {
-        assertEquals(99, Protocol.parse(byteArrayOf(1, 99, 0, 0, 0))!!.codec)
+        assertEquals(99, Protocol.parse(byteArrayOf(2, 99, 0, 0, 0))!!.codec)
         assertNull(Codecs.decoder(99))
     }
 

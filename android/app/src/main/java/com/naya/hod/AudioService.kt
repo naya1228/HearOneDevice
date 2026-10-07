@@ -65,9 +65,11 @@ class AudioService : Service() {
     private var wakeLock: PowerManager.WakeLock? = null
     private var scanning = false
     private var targetId: String? = null
-    // 연결 확인 (docs/PROTOCOL.md 5절). 통과하기 전에 온 소리는 버림
-    private var auth: Auth? = null
-    @Volatile private var authed = false
+    // 연결 확인 (docs/PROTOCOL.md 5·6절). GATT 콜백 스레드에서만 바꿈 (패킷 순서대로 처리하려고)
+    @Volatile private var auth: Auth? = null
+    // 확인 통과 뒤에만 있음. 이때부터 잠긴 패킷만 받고, 통과 전에 온 소리는 버림
+    @Volatile private var unsealer: Unsealer? = null
+    private var unsealFailed = 0
 
     // 통계
     private var mtu = 23
@@ -155,6 +157,7 @@ class AudioService : Service() {
         }
         lastSeq = -1
         unknownCodec = 0
+        unsealFailed = 0
         val id = targetId ?: return
         setStatus("${pcLabel()} 찾는 중...")
         // QR로 받은 주소에서 우리 서비스를 광고하는 PC만 (docs/PROTOCOL.md 1절)
@@ -244,11 +247,13 @@ class AudioService : Service() {
                 setStatus("구독 실패 (코드 $status)")
                 return
             }
-            // 확인 상태는 메인 스레드에서만 만짐 (onControl과 같은 곳)
+            val key = targetId?.let { SavedPcs.find(this@AudioService, it) }?.key?.ifEmpty { null }
+            if (key == null) {
+                handler.post { stopWith("이 PC는 QR을 다시 찍어야 해요") }
+                return
+            }
+            auth = Auth(Protocol.hexBytes(key))
             handler.post {
-                val key = targetId?.let { SavedPcs.find(this@AudioService, it) }?.key?.ifEmpty { null }
-                    ?: return@post stopWith("이 PC는 QR을 다시 찍어야 해요")
-                auth = Auth(Protocol.hexBytes(key))
                 setStatus("${pcLabel()} 확인 중...")
                 handler.postDelayed(authTimeout, AUTH_TIMEOUT_MS)
             }
@@ -269,12 +274,15 @@ class AudioService : Service() {
     }
 
     private fun onAudio(data: ByteArray) {
-        val packet = Protocol.parse(data) ?: return
+        val raw = Protocol.parse(data) ?: return
+        val open = unsealer
+        // 통과 뒤엔 잠긴 패킷만 (docs/PROTOCOL.md 6절). 못 풀면 버림
+        val packet = if (open == null) raw else open.open(raw) ?: run { unsealFailed++; return }
         if (packet.codec == Protocol.CONTROL) {
-            onControl(packet)
+            onControl(packet, sealed = open != null)
             return
         }
-        if (!authed) return
+        if (open == null) return
         if (lastSeq >= 0) {
             val gap = (packet.seq - lastSeq - 1) and 0xFFFF
             if (gap in 1..1000) lost += gap
@@ -289,25 +297,32 @@ class AudioService : Service() {
     }
 
     // PC가 보낸 제어 메시지 (docs/PROTOCOL.md 4절). 멈추는 경우는 정지 버튼과 똑같이 (다시 찾지 않음)
-    private fun onControl(packet: Protocol.Packet) {
+    // 확인 절차(2·3·4)는 통과 전 잠기지 않은 것만, 중지(1)는 통과 뒤 잠긴 것만 받음
+    private fun onControl(packet: Protocol.Packet, sealed: Boolean) {
         val cmd = packet.data.getOrNull(Protocol.HEADER_LEN)?.toInt() ?: return
         val body = packet.data.copyOfRange(Protocol.HEADER_LEN + 1, packet.data.size)
-        handler.post {
-            when (cmd) {
-                Protocol.CONTROL_STOP -> stopWith("PC에서 공유를 중지했어요")
-                Protocol.CONTROL_CHALLENGE -> answer(body)
-                Protocol.CONTROL_AUTH_OK -> {
-                    if (auth?.checkPc(body) == true) {
-                        handler.removeCallbacks(authTimeout)
-                        authed = true
-                        playing = true
-                        setStatus("${pcLabel()} 연결됨")
-                    } else {
-                        stopWith("PC 확인에 실패해 끊었어요 (진짜 PC가 아닐 수 있음)")
-                    }
+        if (sealed) {
+            if (cmd == Protocol.CONTROL_STOP) handler.post { stopWith("PC에서 공유를 중지했어요") }
+            return
+        }
+        when (cmd) {
+            Protocol.CONTROL_CHALLENGE -> answer(body)
+            Protocol.CONTROL_AUTH_OK -> {
+                val a = auth
+                val key = a?.takeIf { it.checkPc(body) }?.audioKey()
+                if (key == null) {
+                    handler.post { stopWith("PC 확인에 실패해 끊었어요 (진짜 PC가 아닐 수 있음)") }
+                    return
                 }
-                Protocol.CONTROL_AUTH_FAIL -> stopWith("열쇠가 맞지 않아요. PC의 QR을 다시 찍어 주세요")
+                // 이 패킷 바로 다음부터 잠겨 옴
+                unsealer = Unsealer(key, packet.seq.toLong())
+                handler.post {
+                    handler.removeCallbacks(authTimeout)
+                    playing = true
+                    setStatus("${pcLabel()} 연결됨")
+                }
             }
+            Protocol.CONTROL_AUTH_FAIL -> handler.post { stopWith("열쇠가 맞지 않아요. PC의 QR을 다시 찍어 주세요") }
         }
     }
 
@@ -334,7 +349,7 @@ class AudioService : Service() {
     private fun resetAuth() {
         handler.removeCallbacks(authTimeout)
         auth = null
-        authed = false
+        unsealer = null
     }
 
     private fun stopWith(message: String) {
@@ -373,8 +388,8 @@ class AudioService : Service() {
             } else if (playing && dec != null && p != null) {
                 setStatus("${pcLabel()} 재생 중", updateNotification = false)
                 val kb = bytesThisSecond / 1024.0
-                detail = "코덱 ${dec.id} ${dec.name} · MTU $mtu · %.1f KB/s\n버퍼 %dms (+재생장치 %dms) · 손실 %d · 끊김 %d회 · 버림 %dms".format(
-                    kb, p.bufferedMs, p.trackMs, lost, p.underruns, p.droppedMs
+                detail = "코덱 ${dec.id} ${dec.name} · MTU $mtu · %.1f KB/s\n버퍼 %dms (+재생장치 %dms) · 손실 %d · 끊김 %d회 · 버림 %dms · 풀기 실패 %d".format(
+                    kb, p.bufferedMs, p.trackMs, lost, p.underruns, p.droppedMs, unsealFailed
                 )
             }
             setStats(detail)

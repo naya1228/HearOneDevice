@@ -6,8 +6,8 @@ import javax.crypto.Mac
 import javax.crypto.spec.SecretKeySpec
 
 /**
- * 연결 한 번의 확인 절차 (폰 쪽 계산). PC가 낸 문제에 답하고, PC가 돌려준 증명을 검사한다.
- * 메시지 순서·형식은 docs/PROTOCOL.md 5절. PC 쪽은 src-tauri/src/auth/handshake.rs
+ * 연결 한 번의 확인 절차 (폰 쪽 계산). PC가 낸 문제에 답하고, PC가 돌려준 증명을 검사하고, 소리 열쇠를 만든다.
+ * 메시지 순서·형식은 docs/PROTOCOL.md 5·6절. PC 쪽은 src-tauri/src/auth/handshake.rs
  */
 class Auth(private val key: ByteArray, private val phoneNonce: ByteArray = randomNonce()) {
 
@@ -18,6 +18,7 @@ class Auth(private val key: ByteArray, private val phoneNonce: ByteArray = rando
         private const val REPLY_TYPE: Byte = 1
         private val PHONE_LABEL = "hearone-phone".toByteArray(Charsets.US_ASCII)
         private val PC_LABEL = "hearone-pc".toByteArray(Charsets.US_ASCII)
+        private val AUDIO_LABEL = "hearone-audio".toByteArray(Charsets.US_ASCII)
 
         private fun randomNonce() = ByteArray(NONCE_LEN).also { SecureRandom().nextBytes(it) }
     }
@@ -38,7 +39,10 @@ class Auth(private val key: ByteArray, private val phoneNonce: ByteArray = rando
         return pcProof.size == PROOF_LEN && MessageDigest.isEqual(proof(PC_LABEL, p), pcProof)
     }
 
-    /** 증명 = HMAC-SHA256(열쇠, 이름표 + PC 무작위 값 + 폰 무작위 값) */
+    /** 이번 연결의 소리 열쇠 (Unsealer에 씀). 문제를 받기 전이면 null */
+    fun audioKey(): ByteArray? = pcNonce?.let { proof(AUDIO_LABEL, it) }
+
+    /** 증명·소리 열쇠 = HMAC-SHA256(열쇠, 이름표 + PC 무작위 값 + 폰 무작위 값) */
     private fun proof(label: ByteArray, pc: ByteArray): ByteArray =
         Mac.getInstance("HmacSHA256").run {
             init(SecretKeySpec(key, "HmacSHA256"))
