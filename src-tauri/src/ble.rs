@@ -1,6 +1,7 @@
 // BLE 송신 (Linux/BlueZ). PC가 광고(peripheral)하고 폰 앱이 찾아와 구독(central)한다.
 // 인코딩된 데이터(encoding.rs)를 받아, 구독한 폰마다 notify로 패킷을 계속 밀어 보낸다.
 
+use crate::auth::Key;
 use crate::codec::packet::{Packetizer, CONTROL_STOP};
 use crate::device_id::{device_id_hex, DeviceId};
 use crate::encoding::{Encoded, EncodedTx};
@@ -58,7 +59,18 @@ impl Drop for BleServer {
     }
 }
 
-pub async fn start(encoded: EncodedTx, id: DeviceId) -> Result<BleServer, String> {
+/// 이 PC의 블루투스 주소 6바이트. 폰이 QR로 받아 이 주소로 연결한다 (docs/PROTOCOL.md 1절)
+pub async fn adapter_address() -> Result<[u8; 6], String> {
+    let session = bluer::Session::new().await.map_err(|e| format!("BlueZ 연결 실패: {e}"))?;
+    let adapter = session
+        .default_adapter()
+        .await
+        .map_err(|e| format!("블루투스 어댑터 없음: {e}"))?;
+    Ok(adapter.address().await.map_err(|e| e.to_string())?.0)
+}
+
+// 확인 절차(docs/PROTOCOL.md 5절)는 아직 ble_windows.rs에만 있음. key는 그때 쓴다
+pub async fn start(encoded: EncodedTx, id: DeviceId, _key: Key) -> Result<BleServer, String> {
     let session = bluer::Session::new().await.map_err(|e| format!("BlueZ 연결 실패: {e}"))?;
     let adapter = session
         .default_adapter()

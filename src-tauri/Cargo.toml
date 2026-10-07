@@ -25,6 +25,10 @@ tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync", "io-ut
 futures-util = "0.3"
 opus = "0.4"
 gethostname = "1.1.0"
+# 연결 확인 (auth/)
+getrandom = "0.3"
+hmac = "0.12"
+sha2 = "0.10"
 
 [target.'cfg(target_os = "linux")'.dependencies]
 libpulse-binding = "2.30.1"

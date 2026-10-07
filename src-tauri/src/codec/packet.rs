@@ -8,6 +8,9 @@ pub const HEADER_LEN: usize = 4;
 /// 제어 메시지 (docs/PROTOCOL.md 4절)
 pub const CONTROL: u8 = 0;
 pub const CONTROL_STOP: u8 = 1;
+pub const CONTROL_CHALLENGE: u8 = 2;
+pub const CONTROL_AUTH_OK: u8 = 3;
+pub const CONTROL_AUTH_FAIL: u8 = 4;
 
 /// 청취자별로 순번을 매겨 패킷을 만든다.
 pub struct Packetizer {
@@ -32,7 +35,15 @@ impl Packetizer {
 
     /// 제어 메시지 패킷 (cmd = CONTROL_STOP 등)
     pub fn control(&mut self, cmd: u8) -> Vec<u8> {
-        self.packet(CONTROL, &[cmd])
+        self.control_with(cmd, &[])
+    }
+
+    /// 뒤에 데이터가 붙는 제어 메시지 (CONTROL_CHALLENGE 등)
+    pub fn control_with(&mut self, cmd: u8, data: &[u8]) -> Vec<u8> {
+        let mut part = Vec::with_capacity(1 + data.len());
+        part.push(cmd);
+        part.extend_from_slice(data);
+        self.packet(CONTROL, &part)
     }
 
     fn packet(&mut self, codec_id: u8, part: &[u8]) -> Vec<u8> {
@@ -70,5 +81,11 @@ mod tests {
         let mut p = Packetizer::new(100);
         p.packet_for(Codec::OpusStereo64k, &[0u8; 10]);
         assert_eq!(p.control(CONTROL_STOP), vec![1, CONTROL, 1, 0, CONTROL_STOP]);
+    }
+
+    #[test]
+    fn control_packet_carries_data() {
+        let mut p = Packetizer::new(100);
+        assert_eq!(p.control_with(CONTROL_CHALLENGE, &[9, 8]), vec![1, CONTROL, 0, 0, CONTROL_CHALLENGE, 9, 8]);
     }
 }

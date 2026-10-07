@@ -14,6 +14,7 @@ PC 시스템 소리 → 블루투스(BLE) → 안드로이드 앱에서 재생. 
 - **코덱 표·바꾸는 법: `docs/CODECS.md`** (앱 `Codecs.kt`는 헤더 번호로 디코더 자동 선택, 양쪽 번호 같아야 함)
 - `src-tauri/src/ble.rs` — BLE 송신 (Linux/BlueZ). 인코딩된 바이트만 받아 나름(코덱 모름). Windows는 `ble_windows.rs` (WinRT, 같은 인터페이스)
 - `src-tauri/src/device_id.rs` — PC 고유 번호 (만들기·저장·16진수)
+- `src-tauri/src/auth/` — 연결 확인: 열쇠(`key.rs`, QR로 건넴)와 확인 계산(`handshake.rs`). 전송과 무관한 공통 부분
 - `src-tauri/examples/send.rs` — UI 없이 송신 테스트: `cargo run --example send`
 - `android/` — 수신 앱 (Kotlin. Opus 디코딩은 안드로이드 내장 MediaCodec, QR 스캔은 ML Kit). `AudioService`(포그라운드 서비스)가 BLE 수신+재생
 - **PC ↔ 폰 약속(UUID·광고·패킷·제어 메시지): `docs/PROTOCOL.md`** (양쪽이 같아야 함)
