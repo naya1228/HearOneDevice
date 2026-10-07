@@ -25,6 +25,10 @@ tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync", "io-ut
 futures-util = "0.3"
 opus = "0.4"
 gethostname = "1.1.0"
+# 연결 확인 (auth/)
+getrandom = "0.3"
+hmac = "0.12"
+sha2 = "0.10"
 
 [target.'cfg(target_os = "linux")'.dependencies]
 libpulse-binding = "2.30.1"
@@ -36,7 +40,6 @@ cpal = "0.17.3"
 # tauri가 쓰는 것과 같은 버전 (중복 빌드 방지)
 windows = { version = "0.61", features = [
     "Devices_Bluetooth_GenericAttributeProfile",
-    "Devices_Bluetooth_Advertisement",
     "Foundation_Collections",
     "Storage_Streams",
 ] }

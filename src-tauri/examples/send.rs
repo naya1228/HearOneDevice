@@ -1,6 +1,6 @@
 // UI 없이 송신만 돌려보는 테스트용: cargo run --example send [코덱 번호]
 // 코덱 번호를 빼면 기본 코덱. 번호는 docs/CODECS.md
-use hear_one_device_lib::{audio, ble, capture, codec::Codec, encoding};
+use hear_one_device_lib::{audio, ble, capture, codec::Codec, encoding, link};
 use tokio::sync::watch;
 
 #[tokio::main]
@@ -16,8 +16,11 @@ async fn main() -> Result<(), String> {
     let tx = audio::channel();
     let (_codec_tx, codec_rx) = watch::channel(codec);
     let (_encoding, encoded) = encoding::start(&tx, codec_rx);
-    // 테스트용 고정 번호. 폰에서 hearone://connect?id=00c0ffee 로 연결
-    let server = ble::start(encoded, [0x00, 0xc0, 0xff, 0xee]).await?;
+    // 테스트용 고정 번호·열쇠. 아래 링크를 QR로 만들어 폰으로 찍는다
+    let (id, key) = ([0x00, 0xc0, 0xff, 0xee], [0x11; 32]);
+    let addr = ble::adapter_address().await?;
+    println!("연결 링크: {}", link::connect_link(&id, Some(&addr), &key, "send-example"));
+    let server = ble::start(encoded, id, key).await?;
     let _capture = capture::start(tx)?;
     println!("송신 중. Ctrl+C로 종료");
 
