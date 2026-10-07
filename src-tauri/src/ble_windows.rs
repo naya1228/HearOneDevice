@@ -12,11 +12,7 @@ use std::time::Duration;
 use tokio::sync::{broadcast, watch, Notify};
 use tokio::task::{AbortHandle, JoinSet};
 use windows::core::GUID;
-use windows::Devices::Bluetooth::Advertisement::{
-    BluetoothLEAdvertisementDataSection, BluetoothLEAdvertisementPublisher,
-    BluetoothLEAdvertisementPublisherStatus,
-};
-use windows::Devices::Bluetooth::BluetoothError;
+use windows::Devices::Bluetooth::{BluetoothAdapter, BluetoothError};
 use windows::Devices::Bluetooth::GenericAttributeProfile::{
     GattCharacteristicProperties, GattCommunicationStatus, GattLocalCharacteristic,
     GattLocalCharacteristicParameters, GattServiceProvider, GattServiceProviderAdvertisementStatus,
@@ -28,13 +24,21 @@ use windows::Storage::Streams::{DataWriter, IBuffer};
 // UUID·광고 형식은 docs/PROTOCOL.md
 const SERVICE_UUID: GUID = GUID::from_u128(0x5e7a0001_3c1b_4f6e_9d2a_7b1c0e5a9f10);
 const AUDIO_CHAR_UUID: GUID = GUID::from_u128(0x5e7a0002_3c1b_4f6e_9d2a_7b1c0e5a9f10);
-/// 광고 데이터 종류: 128비트 UUID의 서비스 데이터
-const AD_SERVICE_DATA_128: u8 = 0x21;
+
+/// 이 PC의 블루투스 주소 ("98:FE:3E:E1:05:27" 꼴). 폰이 연결할 주소 (docs/PROTOCOL.md)
+pub async fn adapter_address() -> Result<String, String> {
+    let adapter = BluetoothAdapter::GetDefaultAsync()
+        .map_err(|e| e.to_string())?
+        .await
+        .map_err(|e| format!("블루투스 어댑터 없음: {e}"))?;
+    let addr = adapter.BluetoothAddress().map_err(|e| e.to_string())?;
+    let bytes = &addr.to_be_bytes()[2..];
+    Ok(bytes.iter().map(|b| format!("{b:02X}")).collect::<Vec<_>>().join(":"))
+}
 
 /// drop되면 광고·GATT 등록이 해제되고 모든 전송이 멈춘다.
 pub struct BleServer {
     provider: GattServiceProvider,
-    publisher: BluetoothLEAdvertisementPublisher,
     characteristic: GattLocalCharacteristic,
     clients_token: i64,
     accept_task: tokio::task::JoinHandle<()>,
@@ -65,7 +69,6 @@ impl Drop for BleServer {
     fn drop(&mut self) {
         self.accept_task.abort();
         let _ = self.characteristic.RemoveSubscribedClientsChanged(self.clients_token);
-        let _ = self.publisher.Stop();
         let _ = self.provider.StopAdvertising();
     }
 }
@@ -101,13 +104,10 @@ pub async fn start(encoded: EncodedTx, id: DeviceId) -> Result<BleServer, String
         }))
         .map_err(|e| e.to_string())?;
 
-    let publisher = match advertise(&provider, &id).await {
-        Ok(p) => p,
-        Err(e) => {
-            let _ = characteristic.RemoveSubscribedClientsChanged(clients_token);
-            return Err(e);
-        }
-    };
+    if let Err(e) = advertise(&provider).await {
+        let _ = characteristic.RemoveSubscribedClientsChanged(clients_token);
+        return Err(e);
+    }
 
     let listeners = Arc::new(AtomicUsize::new(0));
     let count = listeners.clone();
@@ -149,63 +149,33 @@ pub async fn start(encoded: EncodedTx, id: DeviceId) -> Result<BleServer, String
     });
 
     println!("[ble] 광고 시작: {}", device_id_hex(&id));
-    Ok(BleServer { provider, publisher, characteristic, clients_token, accept_task, listeners, stop_tx })
+    Ok(BleServer { provider, characteristic, clients_token, accept_task, listeners, stop_tx })
 }
 
-/// 광고를 두 개 띄운다. 연결용 광고(GattServiceProvider)는 31바이트에 PC 번호 자리가 없어서
-/// PC 번호(서비스 데이터)는 따로 광고(publisher)한다. 폰은 번호 광고를 보고 같은 주소로 연결한다.
-async fn advertise(
-    provider: &GattServiceProvider,
-    id: &DeviceId,
-) -> Result<BluetoothLEAdvertisementPublisher, String> {
+/// 연결 가능한 광고. 내용(서비스 UUID)은 Windows가 채우고, 주소는 이 PC의 진짜 주소로 나간다
+async fn advertise(provider: &GattServiceProvider) -> Result<(), String> {
     let adv = GattServiceProviderAdvertisingParameters::new().map_err(|e| e.to_string())?;
     adv.SetIsConnectable(true).map_err(|e| e.to_string())?;
     adv.SetIsDiscoverable(true).map_err(|e| e.to_string())?;
     provider.StartAdvertisingWithParameters(&adv).map_err(|e| format!("BLE 광고 실패: {e}"))?;
 
-    let publisher = id_publisher(id).map_err(|e| format!("PC 번호 광고 실패: {e}"));
-    let publisher = match publisher {
-        Ok(p) => p,
-        Err(e) => {
-            let _ = provider.StopAdvertising();
-            return Err(e);
-        }
-    };
-
     // 광고 시작 결과는 나중에 상태로만 알 수 있어서 잠깐 지켜본다.
-    // 연결용 광고는 시작 직후 잠깐 Aborted로 보였다가 Started로 바뀌기도 해서 끝까지 기다린다
+    // 시작 직후 잠깐 Aborted로 보였다가 Started로 바뀌기도 해서 끝까지 기다린다
     let deadline = tokio::time::Instant::now() + Duration::from_secs(2);
     loop {
-        let gatt = provider.AdvertisementStatus().map_err(|e| e.to_string())?;
-        let id_adv = publisher.Status().map_err(|e| e.to_string())?;
-        if gatt == GattServiceProviderAdvertisementStatus::Started
-            && id_adv == BluetoothLEAdvertisementPublisherStatus::Started
-        {
-            return Ok(publisher);
+        let status = provider.AdvertisementStatus().map_err(|e| e.to_string())?;
+        if status == GattServiceProviderAdvertisementStatus::Started {
+            return Ok(());
         }
         if tokio::time::Instant::now() >= deadline {
-            let _ = publisher.Stop();
             let _ = provider.StopAdvertising();
             return Err(format!(
-                "BLE 광고가 시작되지 않았습니다. 블루투스가 켜져 있는지 확인하세요 (상태 {}/{})",
-                gatt.0, id_adv.0
+                "BLE 광고가 시작되지 않았습니다. 블루투스가 켜져 있는지, HearOne이 이미 켜져 있지 않은지 확인하세요 (상태 {})",
+                status.0
             ));
         }
         tokio::time::sleep(Duration::from_millis(20)).await;
     }
-}
-
-/// PC 번호 광고: 서비스 데이터 = 서비스 UUID(little-endian 16바이트) + PC 번호
-fn id_publisher(id: &DeviceId) -> windows::core::Result<BluetoothLEAdvertisementPublisher> {
-    let mut data = SERVICE_UUID.to_u128().to_le_bytes().to_vec();
-    data.extend_from_slice(id);
-    let section = BluetoothLEAdvertisementDataSection::new()?;
-    section.SetDataType(AD_SERVICE_DATA_128)?;
-    section.SetData(&buffer(&data)?)?;
-    let publisher = BluetoothLEAdvertisementPublisher::new()?;
-    publisher.Advertisement()?.DataSections()?.Append(&section)?;
-    publisher.Start()?;
-    Ok(publisher)
 }
 
 /// 지금 구독 중인 폰들. 열쇠는 폰마다 다른 장치 ID 문자열
