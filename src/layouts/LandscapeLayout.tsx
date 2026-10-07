@@ -5,9 +5,10 @@ import ShareButton from "../components/ShareButton";
 import type { LayoutProps } from "./LayoutProps";
 
 // 가로 창: 가운데에 좁게. 위 큰 로고·제목, 아래 [QR | 상태·코덱·버튼]
+// 정확히 가운데면 처져 보여서 아래 여백을 조금 더 줘 살짝 위로 올림
 function LandscapeLayout({ status, codecs, busy, error, onToggle, onCodecChange }: LayoutProps) {
   return (
-    <main className="flex flex-col items-center justify-center gap-8 p-6 min-h-dvh">
+    <main className="flex flex-col items-center justify-center gap-8 p-6 pb-[calc(1.5rem+5vh)] min-h-dvh">
       <header className="flex flex-col items-center text-center short:hidden">
         <img className="w-40" src="sharing.svg" />
         <h1 className="text-white text-4xl font-bold mt-2">HearOneDevice</h1>
