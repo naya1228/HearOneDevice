@@ -50,8 +50,9 @@ function App() {
   };
 
   return (
-    <main className="flex flex-col p-4 gap-4 min-h-dvh w-full max-w-md mx-auto">
-      <header className="flex items-center gap-3">
+    <main className="flex flex-col p-4 gap-4 min-h-dvh w-full max-w-md mx-auto sm:max-w-4xl sm:grid sm:grid-cols-[20rem_1fr] sm:grid-rows-[auto_auto_1fr_auto]">
+      {/* 좁은 창: 위아래로 쌓음. 640px 이상(가로 창): 왼쪽 헤더·설정·버튼, 오른쪽 QR·상태 */}
+      <header className="flex items-center gap-3 sm:col-start-1 sm:row-start-1">
         <img className="w-16" src="sharing.svg" />
         <div>
           <h1 className="text-white text-xl font-bold">HearOneDevice</h1>
@@ -59,11 +60,11 @@ function App() {
         </div>
       </header>
 
-      <section className="flex-1 flex items-center justify-center bg-[#262625] rounded-xl p-4">
+      <section className="flex-1 flex items-center justify-center bg-[#262625] rounded-xl p-4 sm:col-start-2 sm:row-start-1 sm:row-span-4">
         <SharePanel running={status.running} listeners={status.listeners} link={status.link} />
       </section>
 
-      <section className="bg-[#262625] rounded-xl divide-y divide-[#333332] text-sm">
+      <section className="bg-[#262625] rounded-xl divide-y divide-[#333332] text-sm sm:col-start-1 sm:row-start-2">
         <div className="flex items-center justify-between px-4 py-2.5">
           <span className="text-gray-400">이 PC 이름</span>
           <span className="text-white">{status.name}</span>
@@ -90,16 +91,22 @@ function App() {
         </label>
       </section>
 
-      {error && <p className="text-red-400 text-sm text-center break-all">{error}</p>}
+      {error && (
+        <p className="text-red-400 text-sm text-center break-all sm:col-start-1 sm:row-start-3 sm:self-end">
+          {error}
+        </p>
+      )}
 
-      <Button
-        type="button"
-        variant={status.running ? "secondary" : "primary"}
-        disabled={busy}
-        onClick={toggle}
-      >
-        {busy ? "..." : status.running ? "공유 중지" : "공유 시작"}
-      </Button>
+      <div className="sm:col-start-1 sm:row-start-4">
+        <Button
+          type="button"
+          variant={status.running ? "secondary" : "primary"}
+          disabled={busy}
+          onClick={toggle}
+        >
+          {busy ? "..." : status.running ? "공유 중지" : "공유 시작"}
+        </Button>
+      </div>
     </main>
   );
 }

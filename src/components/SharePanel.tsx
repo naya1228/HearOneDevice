@@ -10,7 +10,7 @@ type Props = {
 function SharePanel({ running, listeners, link }: Props) {
   if (!running) {
     return (
-      <div className="flex flex-col items-center gap-3 text-center">
+      <div className="flex flex-col items-center gap-3 text-center break-keep">
         <img className="w-28 opacity-40" src="sharing.svg" />
         <p className="text-white text-lg">공유가 꺼져 있습니다</p>
         <p className="text-gray-500 text-sm">공유를 시작하면 폰으로 찍을 QR이 나타납니다</p>
@@ -20,13 +20,13 @@ function SharePanel({ running, listeners, link }: Props) {
 
   const connected = listeners > 0;
   return (
-    <div className="flex flex-col items-center gap-3 text-center">
+    <div className="flex flex-col items-center gap-3 text-center break-keep">
       <div className="bg-white p-3 rounded-lg">
         <QRCode
           value={link}
           size={256}
           viewBox="0 0 256 256"
-          style={{ width: "clamp(120px, 25vh, 280px)", height: "auto" }}
+          className="h-auto w-[clamp(120px,25vh,280px)] sm:w-[clamp(120px,45vh,320px)]"
         />
       </div>
       <p className="text-gray-400 text-sm">폰 앱이나 카메라로 QR을 찍으면 연결됩니다</p>
