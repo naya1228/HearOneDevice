@@ -1,12 +1,11 @@
 import { useEffect, useState } from "react";
 import "./App.css";
-import Button from "./components/Button";
 import { invoke } from "@tauri-apps/api/core";
-import QrBox from "./components/QrBox";
-import StatusLine from "./components/StatusLine";
-import CodecSelect, { type CodecInfo } from "./components/CodecSelect";
-
-type Status = { running: boolean; listeners: number; link: string; name: string; codec: number };
+import type { CodecInfo } from "./components/CodecSelect";
+import type { LayoutProps, Status } from "./layouts/LayoutProps";
+import PortraitLayout from "./layouts/PortraitLayout";
+import LandscapeLayout from "./layouts/LandscapeLayout";
+import TinyLayout from "./layouts/TinyLayout";
 
 function App() {
   const [status, setStatus] = useState<Status>({ running: false, listeners: 0, link: "", name: "", codec: 0 });
@@ -50,33 +49,20 @@ function App() {
     }
   };
 
+  const props: LayoutProps = { status, codecs, busy, error, onToggle: toggle, onCodecChange: changeCodec };
+  // 창 모양에 따라 하나만 보임: 아주 작으면 상태만, 아니면 높이가 폭보다 크면 세로
   return (
-    <main className="flex flex-col items-center justify-center gap-8 p-6 min-h-dvh">
-      <header className="flex flex-col items-center text-center">
-        <img className="w-44" src="sharing.svg" />
-        <h1 className="text-white text-4xl font-bold mt-2">HearOneDevice</h1>
-        <p className="text-gray-500 mt-1">PC 소리를 블루투스로 폰에 보냅니다</p>
-        <p className="text-gray-600 text-sm mt-1">이 PC 이름: {status.name}</p>
-      </header>
-
-      <section className="flex gap-4 w-full max-w-md">
-        <QrBox link={status.running ? status.link : null} />
-        <div className="flex flex-col justify-between flex-1 min-w-0">
-          <StatusLine running={status.running} listeners={status.listeners} />
-          <CodecSelect codecs={codecs} value={status.codec} onChange={changeCodec} />
-          <Button
-            type="button"
-            variant={status.running ? "secondary" : "primary"}
-            disabled={busy}
-            onClick={toggle}
-          >
-            {busy ? "..." : status.running ? "공유 중지" : "공유 시작"}
-          </Button>
-        </div>
-      </section>
-
-      {error && <p className="text-red-400 text-sm text-center break-all max-w-md">{error}</p>}
-    </main>
+    <>
+      <div className="landscape:hidden tiny:hidden">
+        <PortraitLayout {...props} />
+      </div>
+      <div className="portrait:hidden tiny:hidden">
+        <LandscapeLayout {...props} />
+      </div>
+      <div className="hidden tiny:block">
+        <TinyLayout {...props} />
+      </div>
+    </>
   );
 }
 

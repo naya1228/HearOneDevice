@@ -3,3 +3,16 @@
 body {
   background: #1f1f1e;
 }
+
+/* 낮은 창: 로고·제목·PC 이름을 숨기고 QR·상태·코덱·버튼만 */
+@custom-variant short (@media (max-height: 479px));
+
+/* 아주 작은 창: 연결 상태만 */
+@custom-variant tiny {
+  @media (max-height: 219px) {
+    @slot;
+  }
+  @media (max-width: 279px) {
+    @slot;
+  }
+}
