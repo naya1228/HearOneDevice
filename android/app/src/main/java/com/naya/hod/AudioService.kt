@@ -229,6 +229,13 @@ class AudioService : Service() {
                 g.disconnect()
                 return
             }
+            // PC는 구독을 받자마자 문제를 보내고, 그게 구독 완료(onDescriptorWrite)보다 먼저 올 수 있음 → 구독 전에 준비
+            val key = targetId?.let { SavedPcs.find(this@AudioService, it) }?.key?.ifEmpty { null }
+            if (key == null) {
+                handler.post { stopWith("이 PC는 QR을 다시 찍어야 해요") }
+                return
+            }
+            auth = Auth(Protocol.hexBytes(key))
             g.setCharacteristicNotification(ch, true)
             val enable = BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE
             if (Build.VERSION.SDK_INT >= 33) {
@@ -247,12 +254,6 @@ class AudioService : Service() {
                 setStatus("구독 실패 (코드 $status)")
                 return
             }
-            val key = targetId?.let { SavedPcs.find(this@AudioService, it) }?.key?.ifEmpty { null }
-            if (key == null) {
-                handler.post { stopWith("이 PC는 QR을 다시 찍어야 해요") }
-                return
-            }
-            auth = Auth(Protocol.hexBytes(key))
             handler.post {
                 setStatus("${pcLabel()} 확인 중...")
                 handler.postDelayed(authTimeout, AUTH_TIMEOUT_MS)
@@ -322,7 +323,10 @@ class AudioService : Service() {
                     setStatus("${pcLabel()} 연결됨")
                 }
             }
-            Protocol.CONTROL_AUTH_FAIL -> handler.post { stopWith("열쇠가 맞지 않아요. PC의 QR을 다시 찍어 주세요") }
+            // PC는 열쇠가 다를 때와 답이 안 왔을 때를 구별하지 않음 (docs/PROTOCOL.md 4절)
+            Protocol.CONTROL_AUTH_FAIL -> handler.post {
+                stopWith("연결 확인에 실패했어요. 다시 시도해 보고, 계속 안 되면 PC의 QR을 다시 찍어 주세요")
+            }
         }
     }
 
