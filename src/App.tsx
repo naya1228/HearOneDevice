@@ -70,17 +70,23 @@ function App() {
         </div>
         <label className="flex items-center justify-between px-4 py-2">
           <span className="text-gray-400">코덱</span>
-          <select
-            className="bg-[#333332] text-white rounded-md px-2 py-1"
-            value={status.codec}
-            onChange={(e) => changeCodec(Number(e.target.value))}
-          >
-            {codecs.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.id}. {c.name}
-              </option>
-            ))}
-          </select>
+          {/* WebKitGTK는 기본 select를 GTK 모양(밝은 바탕)으로 그려서 appearance-none + 화살표 직접 그림 */}
+          <span className="relative">
+            <select
+              className="appearance-none bg-[#333332] text-white rounded-md pl-3 pr-8 py-1.5"
+              value={status.codec}
+              onChange={(e) => changeCodec(Number(e.target.value))}
+            >
+              {codecs.map((c) => (
+                <option key={c.id} value={c.id} className="bg-[#333332] text-white">
+                  {c.id}. {c.name}
+                </option>
+              ))}
+            </select>
+            <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs">
+              ▼
+            </span>
+          </span>
         </label>
       </section>
 
