@@ -1,6 +1,7 @@
 import QrBox from "../components/QrBox";
 import StatusLine from "../components/StatusLine";
 import CodecSelect from "../components/CodecSelect";
+import CodecWarning from "../components/CodecWarning";
 import ShareButton from "../components/ShareButton";
 import type { LayoutProps } from "./LayoutProps";
 
@@ -27,10 +28,13 @@ function PortraitLayout({ status, codecs, busy, error, onToggle, onCodecChange }
           <span className="text-gray-400">이 PC 이름</span>
           <span className="text-white">{status.name}</span>
         </div>
-        <label className="flex items-center justify-between gap-3 px-4 py-2">
-          <span className="text-gray-400 shrink-0">코덱</span>
-          <CodecSelect codecs={codecs} value={status.codec} onChange={onCodecChange} />
-        </label>
+        <div className="flex flex-col items-end gap-1 px-4 py-2">
+          <label className="flex items-center justify-between gap-3 w-full">
+            <span className="text-gray-400 shrink-0">코덱</span>
+            <CodecSelect codecs={codecs} value={status.codec} onChange={onCodecChange} />
+          </label>
+          <CodecWarning codecs={codecs} value={status.codec} />
+        </div>
       </section>
 
       {error && <p className="text-red-400 text-sm text-center break-all">{error}</p>}

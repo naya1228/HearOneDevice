@@ -9,7 +9,7 @@ mod resample;
 use crate::audio::AudioChunk;
 
 /// 코덱 번호. 패킷 헤더에 들어가므로 android/.../Codecs.kt 와 번호가 같아야 함.
-/// 새 코덱은 번호를 하나 추가하고 ALL·name()·encoder()에 연결한다.
+/// 새 코덱은 번호를 하나 추가하고 ALL·name()·warning()·encoder()에 연결한다.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[repr(u8)]
 pub enum Codec {
@@ -37,6 +37,15 @@ impl Codec {
         match self {
             Codec::OpusStereo64k => "Opus 64kbps (기본)",
             Codec::OpusStereo128k => "Opus 128kbps (고음질)",
+        }
+    }
+
+    /// 이 코덱을 골랐을 때 화면에 띄울 주의 문구
+    pub fn warning(self) -> Option<&'static str> {
+        match self {
+            Codec::OpusStereo64k => None,
+            // 전파를 두 배로 써서 혼잡한 2.4GHz에서 재전송이 몰림 (docs/CODECS.md)
+            Codec::OpusStereo128k => Some("사람 많은 곳에서는 끊길 수 있어요"),
         }
     }
 }

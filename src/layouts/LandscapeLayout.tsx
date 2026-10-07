@@ -1,6 +1,7 @@
 import QrBox from "../components/QrBox";
 import StatusLine from "../components/StatusLine";
 import CodecSelect from "../components/CodecSelect";
+import CodecWarning from "../components/CodecWarning";
 import ShareButton from "../components/ShareButton";
 import type { LayoutProps } from "./LayoutProps";
 
@@ -20,7 +21,10 @@ function LandscapeLayout({ status, codecs, busy, error, onToggle, onCodecChange 
         <QrBox link={status.running ? status.link : null} />
         <div className="flex flex-col justify-between flex-1 min-w-0">
           <StatusLine running={status.running} listeners={status.listeners} />
-          <CodecSelect codecs={codecs} value={status.codec} onChange={onCodecChange} />
+          <div className="flex flex-col gap-1">
+            <CodecSelect codecs={codecs} value={status.codec} onChange={onCodecChange} />
+            <CodecWarning codecs={codecs} value={status.codec} />
+          </div>
           <ShareButton running={status.running} busy={busy} onClick={onToggle} />
         </div>
       </section>

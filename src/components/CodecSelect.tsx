@@ -1,4 +1,4 @@
-export type CodecInfo = { id: number; name: string };
+export type CodecInfo = { id: number; name: string; warning: string | null };
 type Props = { codecs: CodecInfo[]; value: number; onChange: (id: number) => void };
 
 // WebKitGTK는 기본 select를 GTK 모양(밝은 바탕)으로 그려서 appearance-none + 화살표 직접 그림

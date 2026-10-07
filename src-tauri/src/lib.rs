@@ -47,6 +47,7 @@ struct Status {
 struct CodecInfo {
     id: u8,
     name: &'static str,
+    warning: Option<&'static str>,
 }
 
 // PC 고유 번호: 처음 한 번 만들어 설정 폴더에 저장 → 앱을 다시 켜도 QR이 그대로
@@ -107,7 +108,7 @@ async fn sharing_status(state: State<'_, AppState>) -> Result<Status, String> {
 /// 화면에서 고를 수 있는 코덱 목록 (번호·이름은 docs/CODECS.md)
 #[tauri::command]
 fn codecs() -> Vec<CodecInfo> {
-    Codec::ALL.iter().map(|&c| CodecInfo { id: c.id(), name: c.name() }).collect()
+    Codec::ALL.iter().map(|&c| CodecInfo { id: c.id(), name: c.name(), warning: c.warning() }).collect()
 }
 
 /// 코덱 바꾸기. 공유 중이면 바로 적용되고, 폰은 패킷 헤더의 번호를 보고 따라간다
