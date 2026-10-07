@@ -70,7 +70,12 @@ class AudioService : Service() {
     private var lost = 0
     private var unknownCodec = 0 // PC가 이 앱이 모르는 코덱으로 보내면 그 번호
     private var bytesThisSecond = 0
+    // 연결(구독 성공)·해제 순간에 알림음
     private var playing = false
+        set(value) {
+            if (value != field) if (value) Chime.connected() else Chime.disconnected()
+            field = value
+        }
 
     private val bluetooth by lazy { getSystemService(BluetoothManager::class.java).adapter }
 
