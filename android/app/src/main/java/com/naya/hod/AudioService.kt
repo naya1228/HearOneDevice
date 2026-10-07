@@ -146,10 +146,9 @@ class AudioService : Service() {
         unknownCodec = 0
         val id = targetId ?: return
         setStatus("${pcLabel()} 찾는 중...")
-        // 이 번호를 광고에 싣고 있는 PC만
+        // 이 번호를 서비스 데이터에 싣고 있는 PC만
         val filter = ScanFilter.Builder()
-            .setServiceUuid(ParcelUuid(Protocol.SERVICE_UUID))
-            .setManufacturerData(Protocol.MANUFACTURER_ID, Protocol.idBytes(id))
+            .setServiceData(ParcelUuid(Protocol.SERVICE_UUID), Protocol.idBytes(id))
             .build()
         val settings = ScanSettings.Builder().setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY).build()
         scanner.startScan(listOf(filter), settings, scanCallback)

@@ -1,6 +1,6 @@
 // 폰이 QR로 읽는 연결 링크 만들기. 형식은 docs/PROTOCOL.md 1절
 
-use crate::ble::{device_id_hex, DeviceId};
+use crate::device_id::{device_id_hex, DeviceId};
 
 /// 이 PC의 이름 (QR에 실어 폰 목록에 표시). 컴퓨터 이름(hostname)
 pub fn pc_name() -> String {

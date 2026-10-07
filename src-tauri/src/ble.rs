@@ -2,6 +2,7 @@
 // 인코딩된 데이터(encoding.rs)를 받아, 구독한 폰마다 notify로 패킷을 계속 밀어 보낸다.
 
 use crate::codec::packet::{Packetizer, CONTROL_STOP};
+use crate::device_id::{device_id_hex, DeviceId};
 use crate::encoding::{Encoded, EncodedTx};
 use bluer::{
     adv::{Advertisement, AdvertisementHandle},
@@ -22,15 +23,6 @@ use tokio::task::JoinSet;
 // UUID·광고 형식은 docs/PROTOCOL.md
 pub const SERVICE_UUID: Uuid = Uuid::from_u128(0x5e7a0001_3c1b_4f6e_9d2a_7b1c0e5a9f10);
 pub const AUDIO_CHAR_UUID: Uuid = Uuid::from_u128(0x5e7a0002_3c1b_4f6e_9d2a_7b1c0e5a9f10);
-
-pub const MANUFACTURER_ID: u16 = 0xFFFF;
-
-/// PC 고유 번호 4바이트. QR에는 16진수 8자리로 들어간다.
-pub type DeviceId = [u8; 4];
-
-pub fn device_id_hex(id: &DeviceId) -> String {
-    id.iter().map(|b| format!("{b:02x}")).collect()
-}
 
 /// drop되면 광고·GATT 등록이 해제되고 모든 전송이 멈춘다.
 pub struct BleServer {
@@ -77,8 +69,7 @@ pub async fn start(encoded: EncodedTx, id: DeviceId) -> Result<BleServer, String
     let adv = adapter
         .advertise(Advertisement {
             advertisement_type: bluer::adv::Type::Peripheral,
-            service_uuids: [SERVICE_UUID].into_iter().collect(),
-            manufacturer_data: [(MANUFACTURER_ID, id.to_vec())].into_iter().collect(),
+            service_data: [(SERVICE_UUID, id.to_vec())].into_iter().collect(),
             discoverable: Some(true),
             ..Default::default()
         })

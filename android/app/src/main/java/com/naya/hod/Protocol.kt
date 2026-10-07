@@ -10,8 +10,6 @@ object Protocol {
     // 알림 구독을 켜는 표준 디스크립터
     val CCCD_UUID: UUID = UUID.fromString("00002902-0000-1000-8000-00805f9b34fb")
 
-    const val MANUFACTURER_ID = 0xFFFF
-
     /** QR 링크에서 꺼낸 PC 번호(16진수 8자리)와 이름 (옛 QR엔 이름이 없음) */
     data class Link(val id: String, val name: String?)
 

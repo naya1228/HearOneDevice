@@ -33,3 +33,12 @@ bluer = { version = "0.17", features = ["bluetoothd"] }
 
 [target.'cfg(target_os = "windows")'.dependencies]
 cpal = "0.17.3"
+# tauri가 쓰는 것과 같은 버전 (중복 빌드 방지)
+windows = { version = "0.61", features = [
+    "Devices_Bluetooth_GenericAttributeProfile",
+    "Devices_Bluetooth_Advertisement",
+    "Foundation_Collections",
+    "Storage_Streams",
+] }
+# 기본 기능(std)을 켜야 WinRT 비동기 작업을 .await 할 수 있음
+windows-future = "0.2"

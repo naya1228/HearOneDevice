@@ -2,16 +2,16 @@
 compile_error!("HearOneDevice supports Windows and Linux only.");
 
 pub mod audio;
-#[cfg_attr(not(target_os = "linux"), path = "ble_unsupported.rs")]
+#[cfg_attr(target_os = "windows", path = "ble_windows.rs")]
 pub mod ble;
 pub mod capture;
 pub mod codec;
+pub mod device_id;
 pub mod encoding;
 pub mod link;
 
 use codec::Codec;
 use serde::Serialize;
-use std::hash::{BuildHasher, Hasher};
 use tauri::{Manager, State};
 use tokio::sync::{watch, Mutex};
 
@@ -24,7 +24,7 @@ struct Sharing {
 
 struct AppState {
     sharing: Mutex<Option<Sharing>>,
-    id: ble::DeviceId,
+    id: device_id::DeviceId,
     /// QR에 싣는 PC 이름
     name: String,
     /// 지금 고른 코덱. 공유 중에 바꾸면 인코더가 다음 조각부터 따라간다
@@ -48,21 +48,6 @@ struct CodecInfo {
     id: u8,
     name: &'static str,
     warning: Option<&'static str>,
-}
-
-// PC 고유 번호: 처음 한 번 만들어 설정 폴더에 저장 → 앱을 다시 켜도 QR이 그대로
-fn load_device_id(dir: std::path::PathBuf) -> ble::DeviceId {
-    let path = dir.join("device_id");
-    if let Ok(bytes) = std::fs::read(&path) {
-        if let Ok(id) = <ble::DeviceId>::try_from(bytes.as_slice()) {
-            return id;
-        }
-    }
-    let random = std::collections::hash_map::RandomState::new().build_hasher().finish();
-    let id: ble::DeviceId = (random as u32).to_be_bytes();
-    let _ = std::fs::create_dir_all(&dir);
-    let _ = std::fs::write(&path, id);
-    id
 }
 
 #[tauri::command]
@@ -126,7 +111,7 @@ pub fn run() {
             let dir = app.path().app_config_dir()?;
             app.manage(AppState {
                 sharing: Mutex::new(None),
-                id: load_device_id(dir),
+                id: device_id::load_device_id(dir),
                 name: link::pc_name(),
                 codec: watch::channel(Codec::DEFAULT).0,
             });

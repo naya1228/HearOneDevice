@@ -5,7 +5,7 @@ PC(`src-tauri/`)와 폰 앱(`android/`)이 서로 맞춰야 하는 값은 전부
 
 | 값이 있는 곳 | PC | 폰 |
 |---|---|---|
-| UUID·광고 | `src-tauri/src/ble.rs` | `Protocol.kt` |
+| UUID·광고 | `src-tauri/src/ble.rs`(Linux), `ble_windows.rs`(Windows) | `Protocol.kt`, `AudioService.kt`(스캔 필터) |
 | 패킷 헤더·제어 메시지 | `src-tauri/src/codec/packet.rs` | `Protocol.kt` |
 | 코덱 번호 | `src-tauri/src/codec/mod.rs` | `Codecs.kt` |
 
@@ -15,14 +15,15 @@ PC(`src-tauri/`)와 폰 앱(`android/`)이 서로 맞춰야 하는 값은 전부
 |---|---|
 | 서비스 UUID | `5e7a0001-3c1b-4f6e-9d2a-7b1c0e5a9f10` |
 | 오디오 특성 UUID (Notify) | `5e7a0002-3c1b-4f6e-9d2a-7b1c0e5a9f10` |
-| 광고 제조사 ID | `0xFFFF` (테스트/미등록용 예약 ID) |
-| 광고 제조사 데이터 | PC 고유 번호 4바이트 |
+| 광고 서비스 데이터 | 서비스 UUID에 딸린 데이터 = PC 고유 번호 4바이트 |
 | QR 링크 | `hearone://connect?id=<PC 번호 16진수 8자리>&name=<PC 이름>` |
 
 - PC 고유 번호는 처음 실행할 때 무작위로 만들어 설정 폴더(`device_id`)에 저장합니다. 다시 켜도 같습니다.
 - `name`은 PC 컴퓨터 이름(hostname)을 URL 퍼센트 인코딩(UTF-8)한 값입니다. 광고에는 자리가 없어 QR에만 싣습니다. 폰은 처음 저장할 때만 쓰고 연결은 번호로 합니다. `name`이 없는 링크도 읽습니다.
-- 광고는 31바이트 제한: flags(3) + 128bit UUID(18) + 제조사 데이터(4+4) = 29바이트. 기기 이름은 못 넣습니다.
-- 폰은 서비스 UUID + 제조사 데이터(PC 번호)가 맞는 광고만 찾습니다. 기록에 없는 PC는 찾지 않으므로 처음 연결은 QR로 합니다.
+- 폰은 서비스 데이터(서비스 UUID + PC 번호)가 맞는 광고만 찾고, 그 광고를 낸 주소로 연결합니다. 기록에 없는 PC는 찾지 않으므로 처음 연결은 QR로 합니다.
+- 광고는 31바이트 제한. 서비스 데이터 항목 = 길이·종류(2) + 128bit UUID(16) + PC 번호(4) = 22바이트.
+  - **Linux**: 연결 가능한 광고 하나에 flags(3) + 서비스 데이터(22) = 25바이트.
+  - **Windows**: 광고 두 개. 연결용 광고(시스템이 서비스 UUID를 넣음)에는 서비스 데이터를 넣으면 31바이트를 넘어 빠지므로, 서비스 데이터는 별도 광고(연결 불가)로 냅니다. 둘 다 같은 PC 주소로 나가야 폰이 연결할 수 있습니다.
 
 ## 2. 연결
 
