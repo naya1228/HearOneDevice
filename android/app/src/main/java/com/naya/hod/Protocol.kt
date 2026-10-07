@@ -34,6 +34,9 @@ object Protocol {
 
     const val CONTROL = 0
     const val CONTROL_STOP = 1
+    const val CONTROL_CHALLENGE = 2
+    const val CONTROL_AUTH_OK = 3
+    const val CONTROL_AUTH_FAIL = 4
 
     /** codec = 코덱 번호 (Codecs.kt), 코덱 데이터는 data\[HEADER_LEN..] */
     class Packet(val seq: Int, val codec: Int, val data: ByteArray)

@@ -8,7 +8,7 @@ PC(`src-tauri/`)와 폰 앱(`android/`)이 서로 맞춰야 하는 값은 전부
 | UUID·광고 | `src-tauri/src/ble.rs`(Linux), `ble_windows.rs`(Windows) | `Protocol.kt`, `AudioService.kt`(스캔 필터) |
 | QR 링크 | `src-tauri/src/link.rs` | `Protocol.kt` |
 | 패킷 헤더·제어 메시지 | `src-tauri/src/codec/packet.rs` | `Protocol.kt` |
-| 연결 확인 계산 | `src-tauri/src/auth/` | (앱 쪽 구현 필요) |
+| 연결 확인 계산 | `src-tauri/src/auth/` | `Auth.kt` (주고받기는 `AudioService.kt`) |
 | 코덱 번호 | `src-tauri/src/codec/mod.rs` | `Codecs.kt` |
 
 ## 1. 찾기: QR과 광고
@@ -94,4 +94,5 @@ QR로 건넨 열쇠 K를 PC와 폰이 둘 다 가졌는지, 연결할 때마다 
 - PC는 문제를 낸 뒤 5초 안에 맞는 답이 없으면 제어 4를 보내고 그 폰에는 소리를 보내지 않습니다.
 - P와 F를 연결마다 새로 만들므로 예전 연결을 녹음해 다시 틀어도 통과하지 못합니다.
 - 증명 비교는 걸리는 시간이 같은 방법으로 합니다 (PC는 `hmac`의 `verify_slice`).
-- 구현 상태 (2026-10-07): 1·5절의 새 방식은 PC Windows(`ble_windows.rs`)와 QR 링크(`link.rs`)만 있음. PC Linux(`ble.rs`)는 아직 광고에 서비스 데이터(PC 번호)를 싣고 확인 절차가 없으며, 폰 앱은 옛 QR·옛 스캔 방식.
+- 폰은 구독한 뒤 10초 안에 확인이 끝나지 않으면 멈추고 "PC 앱을 업데이트해 주세요"를 보입니다 (옛 PC 앱은 문제를 보내지 않음).
+- 구현 상태 (2026-10-07): 1·5절의 새 방식은 PC Windows(`ble_windows.rs`), QR 링크(`link.rs`), 폰 앱에 있음. PC Linux(`ble.rs`)는 아직 광고에 서비스 데이터(PC 번호)를 싣고 확인 절차가 없음.

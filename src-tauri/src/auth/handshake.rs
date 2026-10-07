@@ -78,6 +78,23 @@ mod tests {
         assert!(expected.verify_slice(&pc_proof).is_ok());
     }
 
+    // 폰 앱 AuthTest.kt와 같은 값 (양쪽 계산이 같은지 확인)
+    #[test]
+    fn proof_matches_fixed_values() {
+        let key = [7u8; 32];
+        let pc_nonce: Vec<u8> = (0..16).collect();
+        let phone_nonce = [9u8; NONCE_LEN];
+        let hex = |m: Hmac<Sha256>| m.finalize().into_bytes().iter().map(|b| format!("{b:02x}")).collect::<String>();
+        assert_eq!(
+            hex(proof(&key, PHONE_LABEL, &pc_nonce, &phone_nonce)),
+            "9beffad1415a5c8a6753ab385c6705c48e7e55360551650d2aee0ced3c03ae31"
+        );
+        assert_eq!(
+            hex(proof(&key, PC_LABEL, &pc_nonce, &phone_nonce)),
+            "2bf2e7dbe786aad5e2980fe4816e0ba6b991034e44dbbf698966c29b5c7ac527"
+        );
+    }
+
     #[test]
     fn wrong_key_fails() {
         let hs = Handshake::new([7u8; 32]);

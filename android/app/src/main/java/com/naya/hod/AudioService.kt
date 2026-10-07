@@ -42,6 +42,8 @@ class AudioService : Service() {
         const val EXTRA_ID = "id"
         private const val CHANNEL_ID = "playback"
         private const val NOTIFICATION_ID = 1
+        // PC는 5초 안에 답이 없으면 실패로 봄 (docs/PROTOCOL.md 5절). 폰은 여유를 두고 기다림
+        private const val AUTH_TIMEOUT_MS = 10_000L
 
         @Volatile var isRunning = false; private set
         @Volatile var status = "정지됨"; private set
@@ -63,6 +65,9 @@ class AudioService : Service() {
     private var wakeLock: PowerManager.WakeLock? = null
     private var scanning = false
     private var targetId: String? = null
+    // 연결 확인 (docs/PROTOCOL.md 5절). 통과하기 전에 온 소리는 버림
+    private var auth: Auth? = null
+    @Volatile private var authed = false
 
     // 통계
     private var mtu = 23
@@ -130,6 +135,7 @@ class AudioService : Service() {
         }
         wakeLock?.let { if (it.isHeld) it.release() }
         wakeLock = null
+        resetAuth()
         playing = false
         setStats(null)
         setStatus("정지됨")
@@ -152,11 +158,8 @@ class AudioService : Service() {
         val id = targetId ?: return
         setStatus("${pcLabel()} 찾는 중...")
         // QR로 받은 주소에서 우리 서비스를 광고하는 PC만 (docs/PROTOCOL.md 1절)
-        val addr = SavedPcs.find(this, id)?.addr?.ifEmpty { null } ?: run {
-            stopAll()
-            setStatus("이 PC는 QR을 다시 찍어야 해요")
-            return
-        }
+        val addr = SavedPcs.find(this, id)?.addr?.ifEmpty { null }
+            ?: return stopWith("이 PC는 QR을 다시 찍어야 해요")
         val filter = ScanFilter.Builder()
             .setDeviceAddress(addr)
             .setServiceUuid(ParcelUuid(Protocol.SERVICE_UUID))
@@ -201,6 +204,7 @@ class AudioService : Service() {
             } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
                 g.close()
                 if (gatt == g) gatt = null
+                resetAuth()
                 playing = false
                 if (isRunning) {
                     setStatus("끊김, 다시 찾는 중...")
@@ -234,9 +238,20 @@ class AudioService : Service() {
             }
         }
 
+        // 구독 성공 → PC가 확인 문제를 보내옴 (onControl)
         override fun onDescriptorWrite(g: BluetoothGatt, d: BluetoothGattDescriptor, status: Int) {
-            playing = status == BluetoothGatt.GATT_SUCCESS
-            setStatus(if (playing) "${pcLabel()} 연결됨" else "구독 실패 (코드 $status)")
+            if (status != BluetoothGatt.GATT_SUCCESS) {
+                setStatus("구독 실패 (코드 $status)")
+                return
+            }
+            // 확인 상태는 메인 스레드에서만 만짐 (onControl과 같은 곳)
+            handler.post {
+                val key = targetId?.let { SavedPcs.find(this@AudioService, it) }?.key?.ifEmpty { null }
+                    ?: return@post stopWith("이 PC는 QR을 다시 찍어야 해요")
+                auth = Auth(Protocol.hexBytes(key))
+                setStatus("${pcLabel()} 확인 중...")
+                handler.postDelayed(authTimeout, AUTH_TIMEOUT_MS)
+            }
         }
 
         // ---------- 3. 소리 받기 ----------
@@ -259,6 +274,7 @@ class AudioService : Service() {
             onControl(packet)
             return
         }
+        if (!authed) return
         if (lastSeq >= 0) {
             val gap = (packet.seq - lastSeq - 1) and 0xFFFF
             if (gap in 1..1000) lost += gap
@@ -272,15 +288,58 @@ class AudioService : Service() {
         }
     }
 
-    // PC가 보낸 제어 메시지. 공유 중지면 정지 버튼과 똑같이 멈춘다 (다시 찾지 않음)
+    // PC가 보낸 제어 메시지 (docs/PROTOCOL.md 4절). 멈추는 경우는 정지 버튼과 똑같이 (다시 찾지 않음)
     private fun onControl(packet: Protocol.Packet) {
         val cmd = packet.data.getOrNull(Protocol.HEADER_LEN)?.toInt() ?: return
-        if (cmd == Protocol.CONTROL_STOP) {
-            handler.post {
-                stopAll()
-                setStatus("PC에서 공유를 중지했어요")
+        val body = packet.data.copyOfRange(Protocol.HEADER_LEN + 1, packet.data.size)
+        handler.post {
+            when (cmd) {
+                Protocol.CONTROL_STOP -> stopWith("PC에서 공유를 중지했어요")
+                Protocol.CONTROL_CHALLENGE -> answer(body)
+                Protocol.CONTROL_AUTH_OK -> {
+                    if (auth?.checkPc(body) == true) {
+                        handler.removeCallbacks(authTimeout)
+                        authed = true
+                        playing = true
+                        setStatus("${pcLabel()} 연결됨")
+                    } else {
+                        stopWith("PC 확인에 실패해 끊었어요 (진짜 PC가 아닐 수 있음)")
+                    }
+                }
+                Protocol.CONTROL_AUTH_FAIL -> stopWith("열쇠가 맞지 않아요. PC의 QR을 다시 찍어 주세요")
             }
         }
+    }
+
+    // PC 문제에 답을 오디오 특성에 씀 (응답 있는 쓰기)
+    private fun answer(challenge: ByteArray) {
+        val g = gatt ?: return
+        val reply = auth?.reply(challenge) ?: return
+        val ch = g.getService(Protocol.SERVICE_UUID)?.getCharacteristic(Protocol.AUDIO_CHAR_UUID) ?: return
+        val type = BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT
+        if (Build.VERSION.SDK_INT >= 33) {
+            g.writeCharacteristic(ch, reply, type)
+        } else {
+            @Suppress("DEPRECATION")
+            ch.value = reply
+            ch.writeType = type
+            @Suppress("DEPRECATION")
+            g.writeCharacteristic(ch)
+        }
+    }
+
+    // 정해진 시간 안에 확인이 안 끝나면 옛 PC 앱이거나 문제가 있는 것
+    private val authTimeout = Runnable { stopWith("PC가 연결 확인에 답하지 않아요. PC 앱을 업데이트해 주세요") }
+
+    private fun resetAuth() {
+        handler.removeCallbacks(authTimeout)
+        auth = null
+        authed = false
+    }
+
+    private fun stopWith(message: String) {
+        stopAll()
+        setStatus(message)
     }
 
     // PC에서 코덱을 바꾸면 패킷 헤더의 번호가 바뀐다 → 디코더를 바꾸고, 샘플레이트·채널이 다르면 재생기도 새로.
