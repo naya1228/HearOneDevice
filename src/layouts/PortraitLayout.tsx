@@ -9,7 +9,7 @@ function PortraitLayout({ status, codecs, busy, error, onToggle, onCodecChange }
   return (
     <main className="flex flex-col p-4 gap-4 min-h-dvh w-full max-w-md mx-auto">
       <header className="flex items-center gap-3 short:hidden">
-        <img className="w-16" src="sharing.svg" />
+        <img className="w-14" src="sharing.svg" />
         <div>
           <h1 className="text-white text-xl font-bold">HearOneDevice</h1>
           <p className="text-gray-500 text-sm">PC 소리를 블루투스로 폰에 보냅니다</p>

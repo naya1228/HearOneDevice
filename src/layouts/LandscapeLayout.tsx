@@ -9,7 +9,7 @@ function LandscapeLayout({ status, codecs, busy, error, onToggle, onCodecChange 
   return (
     <main className="flex flex-col items-center justify-center gap-8 p-6 min-h-dvh">
       <header className="flex flex-col items-center text-center short:hidden">
-        <img className="w-44" src="sharing.svg" />
+        <img className="w-40" src="sharing.svg" />
         <h1 className="text-white text-4xl font-bold mt-2">HearOneDevice</h1>
         <p className="text-gray-500 mt-1">PC 소리를 블루투스로 폰에 보냅니다</p>
         <p className="text-gray-600 text-sm mt-1">이 PC 이름: {status.name}</p>
