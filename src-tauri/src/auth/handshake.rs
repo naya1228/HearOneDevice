@@ -1,5 +1,5 @@
-// 연결 한 번의 확인 절차 (PC 쪽 계산). 문제를 내고, 폰의 답을 검사하고, PC도 열쇠가 있다는 증명을 만든다.
-// 메시지 순서·형식은 docs/PROTOCOL.md 5절
+// 연결 한 번의 확인 절차 (PC 쪽 계산). 문제를 내고, 폰의 답을 검사하고, PC도 열쇠가 있다는 증명과
+// 이번 연결의 소리 열쇠를 만든다. 메시지 순서·형식은 docs/PROTOCOL.md 5·6절
 
 use super::key::Key;
 use hmac::{Hmac, Mac};
@@ -17,6 +17,13 @@ pub const REPLY_LEN: usize = 2 + NONCE_LEN + PROOF_LEN;
 
 const PHONE_LABEL: &[u8] = b"hearone-phone";
 const PC_LABEL: &[u8] = b"hearone-pc";
+const AUDIO_LABEL: &[u8] = b"hearone-audio";
+
+/// 확인 통과: 폰에 돌려줄 PC 증명과 이번 연결의 소리 열쇠
+pub struct Passed {
+    pub pc_proof: [u8; PROOF_LEN],
+    pub audio_key: Key,
+}
 
 pub struct Handshake {
     key: Key,
@@ -36,8 +43,8 @@ impl Handshake {
         &self.pc_nonce
     }
 
-    /// 폰의 답을 검사한다. 맞으면 폰에 돌려줄 PC 쪽 증명, 틀리면 None
-    pub fn verify(&self, reply: &[u8]) -> Option<[u8; PROOF_LEN]> {
+    /// 폰의 답을 검사한다. 틀리면 None
+    pub fn verify(&self, reply: &[u8]) -> Option<Passed> {
         if reply.len() != REPLY_LEN || reply[0] != REPLY_VERSION || reply[1] != REPLY_TYPE {
             return None;
         }
@@ -45,11 +52,12 @@ impl Handshake {
         let phone_proof = &reply[2 + NONCE_LEN..];
         // 비교에 걸리는 시간으로 답이 새지 않게 verify_slice로 비교
         proof(&self.key, PHONE_LABEL, &self.pc_nonce, phone_nonce).verify_slice(phone_proof).ok()?;
-        Some(proof(&self.key, PC_LABEL, &self.pc_nonce, phone_nonce).finalize().into_bytes().into())
+        let make = |label| proof(&self.key, label, &self.pc_nonce, phone_nonce).finalize().into_bytes().into();
+        Some(Passed { pc_proof: make(PC_LABEL), audio_key: make(AUDIO_LABEL) })
     }
 }
 
-/// 증명 = HMAC-SHA256(열쇠, 이름표 + PC 무작위 값 + 폰 무작위 값)
+/// 증명·소리 열쇠 = HMAC-SHA256(열쇠, 이름표 + PC 무작위 값 + 폰 무작위 값)
 fn proof(key: &Key, label: &[u8], pc_nonce: &[u8], phone_nonce: &[u8]) -> Hmac<Sha256> {
     let mut mac = Hmac::<Sha256>::new_from_slice(key).expect("HMAC은 어떤 길이의 열쇠도 받음");
     mac.update(label);
@@ -75,10 +83,12 @@ mod tests {
         let key = [7u8; 32];
         let hs = Handshake::new(key);
         let phone_nonce = [9u8; NONCE_LEN];
-        let pc_proof = hs.verify(&phone_reply(&key, hs.challenge(), &phone_nonce)).unwrap();
-        // 폰은 같은 계산으로 PC 증명을 검사한다
+        let passed = hs.verify(&phone_reply(&key, hs.challenge(), &phone_nonce)).unwrap();
+        // 폰은 같은 계산으로 PC 증명을 검사하고 소리 열쇠를 만든다
         let expected = proof(&key, PC_LABEL, hs.challenge(), &phone_nonce);
-        assert!(expected.verify_slice(&pc_proof).is_ok());
+        assert!(expected.verify_slice(&passed.pc_proof).is_ok());
+        let audio = proof(&key, AUDIO_LABEL, hs.challenge(), &phone_nonce);
+        assert!(audio.verify_slice(&passed.audio_key).is_ok());
     }
 
     // 폰 앱 AuthTest.kt와 같은 값 (양쪽 계산이 같은지 확인)
@@ -96,12 +106,16 @@ mod tests {
             hex(proof(&key, PC_LABEL, &pc_nonce, &phone_nonce)),
             "2bf2e7dbe786aad5e2980fe4816e0ba6b991034e44dbbf698966c29b5c7ac527"
         );
+        assert_eq!(
+            hex(proof(&key, AUDIO_LABEL, &pc_nonce, &phone_nonce)),
+            "90de82fa19fcc35801587b8582a6fb07730eefba845edac03b027ff24a417245"
+        );
     }
 
     #[test]
     fn wrong_key_fails() {
         let hs = Handshake::new([7u8; 32]);
-        assert_eq!(hs.verify(&phone_reply(&[8u8; 32], hs.challenge(), &[9u8; NONCE_LEN])), None);
+        assert!(hs.verify(&phone_reply(&[8u8; 32], hs.challenge(), &[9u8; NONCE_LEN])).is_none());
     }
 
     #[test]
@@ -109,7 +123,7 @@ mod tests {
         let key = [7u8; 32];
         let old = Handshake::new(key);
         let reply = phone_reply(&key, old.challenge(), &[9u8; NONCE_LEN]);
-        assert_eq!(Handshake::new(key).verify(&reply), None);
+        assert!(Handshake::new(key).verify(&reply).is_none());
     }
 
     #[test]
@@ -117,8 +131,8 @@ mod tests {
         let key = [7u8; 32];
         let hs = Handshake::new(key);
         let mut reply = phone_reply(&key, hs.challenge(), &[9u8; NONCE_LEN]);
-        assert_eq!(hs.verify(&reply[..REPLY_LEN - 1]), None);
+        assert!(hs.verify(&reply[..REPLY_LEN - 1]).is_none());
         reply[0] = 2;
-        assert_eq!(hs.verify(&reply), None);
+        assert!(hs.verify(&reply).is_none());
     }
 }

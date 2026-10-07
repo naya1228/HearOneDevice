@@ -29,6 +29,7 @@ gethostname = "1.1.0"
 getrandom = "0.3"
 hmac = "0.12"
 sha2 = "0.10"
+aes-gcm = "0.10"
 
 [target.'cfg(target_os = "linux")'.dependencies]
 libpulse-binding = "2.30.1"

@@ -1,8 +1,8 @@
-// 구독한 폰 한 대 처리: 열쇠 확인 → 소리 보내기. OS와 무관한 공통 순서.
+// 구독한 폰 한 대 처리: 열쇠 확인 → (이 뒤로 전부 잠금) → 소리 보내기. OS와 무관한 공통 순서.
 // OS 파일(ble.rs·ble_windows.rs)은 그 폰에 바이트를 보내는 방법(PhoneLink)과 폰이 쓴 바이트(inbox)만 넘긴다.
-// 절차·형식은 docs/PROTOCOL.md 4·5절
+// 절차·형식은 docs/PROTOCOL.md 4·5·6절
 
-use crate::auth::{Handshake, Key, REPLY_TIMEOUT};
+use crate::auth::{Handshake, Key, Sealer, REPLY_TIMEOUT};
 use crate::codec::packet::{
     Packetizer, CONTROL_AUTH_FAIL, CONTROL_AUTH_OK, CONTROL_CHALLENGE, CONTROL_STOP,
 };
@@ -38,7 +38,7 @@ pub async fn serve(
     }
 }
 
-/// 열쇠 확인: 문제 → 폰의 답 → PC 증명 (docs/PROTOCOL.md 5절). 통과하면 true
+/// 열쇠 확인: 문제 → 폰의 답 → PC 증명 (docs/PROTOCOL.md 5절). 통과하면 true이고 이 뒤 패킷은 잠긴다
 async fn authenticate(
     link: &mut impl PhoneLink,
     packetizer: &mut Packetizer,
@@ -51,19 +51,20 @@ async fn authenticate(
         println!("[ble] {name} 연결 끊김: {e}");
         return false;
     }
-    let pc_proof = match tokio::time::timeout(REPLY_TIMEOUT, inbox.recv()).await {
+    let passed = match tokio::time::timeout(REPLY_TIMEOUT, inbox.recv()).await {
         Ok(Some(reply)) => hs.verify(&reply),
         _ => None,
     };
-    let Some(pc_proof) = pc_proof else {
+    let Some(passed) = passed else {
         let _ = link.send(&packetizer.control(CONTROL_AUTH_FAIL)).await;
         println!("[ble] {name} 확인 실패 (열쇠가 다르거나 답이 없음). 소리를 보내지 않음");
         return false;
     };
-    if let Err(e) = link.send(&packetizer.control_with(CONTROL_AUTH_OK, &pc_proof)).await {
+    if let Err(e) = link.send(&packetizer.control_with(CONTROL_AUTH_OK, &passed.pc_proof)).await {
         println!("[ble] {name} 연결 끊김: {e}");
         return false;
     }
+    packetizer.seal_from_now(Sealer::new(&passed.audio_key));
     println!("[ble] {name} 확인 통과");
     true
 }
@@ -102,13 +103,15 @@ async fn send_audio(
     }
 }
 
-// 가짜 폰 통로로 PC가 보내는 패킷 순서가 docs/PROTOCOL.md 4·5절과 맞는지 확인.
-// 폰의 계산은 handshake.rs를 쓰지 않고 문서대로 따로 한다.
+// 가짜 폰 통로로 PC가 보내는 패킷 순서가 docs/PROTOCOL.md 4·5·6절과 맞는지 확인.
+// 폰의 계산은 auth/를 쓰지 않고 문서대로 따로 한다.
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::codec::Codec;
     use crate::encoding::Encoded;
+    use aes_gcm::aead::{Aead, KeyInit, Payload};
+    use aes_gcm::Aes256Gcm;
     use hmac::{Hmac, Mac};
     use sha2::Sha256;
 
@@ -152,15 +155,25 @@ mod tests {
     }
 
     fn hmac(key: &Key, parts: &[&[u8]]) -> Vec<u8> {
-        let mut mac = Hmac::<Sha256>::new_from_slice(key).unwrap();
+        let mut mac = <Hmac<Sha256> as Mac>::new_from_slice(key).unwrap();
         parts.iter().for_each(|p| mac.update(p));
         mac.finalize().into_bytes().to_vec()
     }
 
-    /// 헤더 [버전 1, 코덱 0(제어), 순번 LE] + 명령
+    /// 헤더 [버전 2, 코덱 0(제어), 순번 LE] + 명령
     fn control(seq: u16, cmd: u8) -> Vec<u8> {
         let s = seq.to_le_bytes();
-        vec![1, 0, s[0], s[1], cmd]
+        vec![2, 0, s[0], s[1], cmd]
+    }
+
+    /// 잠긴 패킷을 풀어 [4..]의 원래 내용을 돌려준다 (긴 순번 seq)
+    fn open(audio_key: &[u8], seq: u64, packet: &[u8]) -> Vec<u8> {
+        let mut nonce = [0u8; 12];
+        nonce[4..].copy_from_slice(&seq.to_le_bytes());
+        Aes256Gcm::new_from_slice(audio_key)
+            .unwrap()
+            .decrypt(&nonce.into(), Payload { msg: &packet[4..], aad: &packet[..4] })
+            .expect("풀리지 않음")
     }
 
     /// 문제를 받아 열쇠 key로 답한다. 돌려주는 값 = 폰 무작위 값 F와 PC 문제 P
@@ -190,13 +203,18 @@ mod tests {
         while pc.count.load(Ordering::Relaxed) == 0 {
             tokio::task::yield_now().await;
         }
+        // 통과 뒤 패킷은 소리 열쇠로 잠겨 있음 (6절)
+        let audio_key = hmac(&KEY, &[b"hearone-audio", &p, &f]);
         pc.encoded.send(Arc::new(Encoded { codec: Codec::OpusStereo64k, data: vec![5; 10] })).ok().unwrap();
         let audio = pc.sent.recv().await.unwrap();
-        assert_eq!(&audio[..4], &[1, Codec::OpusStereo64k.id(), 2, 0]);
-        assert_eq!(audio[4..], [5; 10]);
+        assert_eq!(&audio[..4], &[2, Codec::OpusStereo64k.id(), 2, 0]);
+        assert_eq!(audio.len(), 4 + 10 + 16);
+        assert_eq!(open(&audio_key, 2, &audio), [5; 10]);
 
         pc.stop.send_replace(true);
-        assert_eq!(pc.sent.recv().await.unwrap(), control(3, 1));
+        let stop = pc.sent.recv().await.unwrap();
+        assert_eq!(&stop[..4], &control(3, 1)[..4]);
+        assert_eq!(open(&audio_key, 3, &stop), [1]);
         pc.task.await.unwrap();
         assert_eq!(pc.count.load(Ordering::Relaxed), 0);
     }
