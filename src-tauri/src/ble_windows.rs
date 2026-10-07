@@ -180,16 +180,21 @@ pub async fn start(encoded: EncodedTx, id: DeviceId, key: Key) -> Result<BleServ
 /// 쓰기 요청 하나 처리 (WinRT 스레드). 응답하고, 바이트를 그 폰의 청취자에게 넘긴다
 fn on_write(args: &GattWriteRequestedEventArgs, routes: &Inboxes) -> windows::core::Result<()> {
     let deferral = args.GetDeferral()?;
-    let name = args.Session()?.DeviceId()?.Id()?.to_string();
-    let request = args.GetRequestAsync()?.get()?;
-    let value = read(&request.Value()?)?;
-    if request.Option()? == GattWriteOption::WriteWithResponse {
-        request.Respond()?;
-    }
-    if let Some(inbox) = routes.lock().unwrap().get(&name) {
-        let _ = inbox.send(value);
-    }
-    deferral.Complete()
+    let result = (|| {
+        let name = args.Session()?.DeviceId()?.Id()?.to_string();
+        let request = args.GetRequestAsync()?.get()?;
+        let value = read(&request.Value()?)?;
+        if request.Option()? == GattWriteOption::WriteWithResponse {
+            request.Respond()?;
+        }
+        if let Some(inbox) = routes.lock().unwrap().get(&name) {
+            let _ = inbox.send(value);
+        }
+        Ok(())
+    })();
+    // 중간에 실패해도 끝났다고 알려야 Windows가 이 요청을 붙잡고 있지 않는다
+    deferral.Complete()?;
+    result
 }
 
 /// 연결 가능한 광고. 내용(서비스 UUID)은 Windows가 채우고, 주소는 이 PC의 진짜 주소로 나간다
