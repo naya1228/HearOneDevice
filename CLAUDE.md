@@ -15,6 +15,7 @@ PC 시스템 소리 → 블루투스(BLE) → 안드로이드 앱에서 재생. 
 - `src-tauri/src/ble.rs` — BLE 송신 (Linux/BlueZ). 인코딩된 바이트만 받아 나름(코덱 모름). Windows는 `ble_windows.rs` (WinRT, 같은 인터페이스)
 - `src-tauri/src/device_id.rs` — PC 고유 번호 (만들기·저장·16진수)
 - `src-tauri/src/auth/` — 연결 확인: 열쇠(`key.rs`, QR로 건넴)와 확인 계산(`handshake.rs`). 전송과 무관한 공통 부분
+- `src-tauri/src/listener.rs` — 구독한 폰 한 대 처리(확인 → 소리 보내기), OS 무관. OS 파일은 `PhoneLink`(그 폰에 보내기)만 구현
 - `src-tauri/examples/send.rs` — UI 없이 송신 테스트: `cargo run --example send`
 - `android/` — 수신 앱 (Kotlin. Opus 디코딩은 안드로이드 내장 MediaCodec, QR 스캔은 ML Kit). `AudioService`(포그라운드 서비스)가 BLE 수신+재생
 - **PC ↔ 폰 약속(UUID·광고·패킷·제어 메시지): `docs/PROTOCOL.md`** (양쪽이 같아야 함)
@@ -48,6 +49,7 @@ PC 시스템 소리 → 블루투스(BLE) → 안드로이드 앱에서 재생. 
 - 2026-10-07 소리 패킷도 열쇠로 잠금 (사용자 결정): 확인 절차만으로는 전파를 직접 엿듣는 장비(스니퍼)에 소리가 그대로 보이기 때문. 열쇠가 32바이트라 잠그면 무차별 대입으로는 사실상 못 풂. 구현 순서는 Linux·폰에 확인 절차를 만든 뒤 잠그기를 한 번에 넣고 Windows에서 시험.
 - 2026-10-07 위치 추적은 받아들인 위험 (사용자 판단): 공유 중에만 노출되고 드러나는 건 "그 시각 거기 있었다"뿐. 막으려면 주소와 고정 UUID까지 광고에서 다 숨겨야 하는데, 연구상 그렇게 해도 완벽하지 않음(PoPETs 2019 "Tracking Anonymized Bluetooth Devices"). 같은 이유로 역할 뒤집기(폰이 광고하고 PC가 찾아감)도 안 함.
 - 2026-10-07 Linux PC + S25: QR 주소로 찾기·연결 확인 절차(0e62fc6, 앱 1ca5d59)로 연결·재생 정상, 기존 기능도 전부 작동 확인 (사용자 실사용).
+- 확인 절차·소리 보내기 순서를 OS 파일(ble.rs·ble_windows.rs)에서 listener.rs 한 곳으로 모음 (사용자 결정): 소리 잠그기를 넣으면 OS마다 따로 있을 때 한쪽만 규칙을 어겨도 소리는 들려서 모름. 오픈소스로 올려 포크한 사람이 한쪽만 고치거나, 나중에 Mac 같은 OS가 추가될 때 어긋나지 않게.
 
 ## 코드 규칙 (모듈화 유지)
 - **한 파일 = 한 가지 기능.** 새 기능은 기존 파일에 끼워 넣지 말고 파일을 따로 만든다.

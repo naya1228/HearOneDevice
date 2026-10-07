@@ -1,18 +1,16 @@
 // BLE 송신 (Windows/WinRT). PC가 광고(peripheral)하고 폰 앱이 찾아와 구독(central)한다.
-// 구독한 폰마다 먼저 열쇠를 확인하고(auth), 통과한 폰에만 인코딩된 데이터(encoding.rs)를 notify로 밀어 보낸다.
+// 구독한 폰마다 확인·소리 보내기(listener.rs)를 돌리고, 그 폰에 notify로 보내는 방법만 여기서 준다.
 // 바깥에서 보는 모양(adapter_address·start·listeners·stop)은 ble.rs(Linux)와 같다.
 
-use crate::auth::{Handshake, Key, REPLY_TIMEOUT};
-use crate::codec::packet::{
-    Packetizer, CONTROL_AUTH_FAIL, CONTROL_AUTH_OK, CONTROL_CHALLENGE, CONTROL_STOP,
-};
+use crate::auth::Key;
 use crate::device_id::{device_id_hex, DeviceId};
 use crate::encoding::EncodedTx;
+use crate::listener::{self, PhoneLink};
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
-use tokio::sync::{broadcast, mpsc, watch, Notify};
+use tokio::sync::{mpsc, watch, Notify};
 use tokio::task::{AbortHandle, JoinSet};
 use windows::core::{Ref, GUID};
 use windows::Devices::Bluetooth::GenericAttributeProfile::{
@@ -157,8 +155,11 @@ pub async fn start(encoded: EncodedTx, id: DeviceId, key: Key) -> Result<BleServ
                 println!("[ble] 구독 시작: {name} (최대 패킷 {max}B)");
                 let (inbox_tx, inbox_rx) = mpsc::unbounded_channel();
                 inboxes.lock().unwrap().insert(name.clone(), inbox_tx);
-                let task = set.spawn(listener_loop(
-                    Listener { ch: ch.clone(), client, name: name.clone() },
+                let task = set.spawn(listener::serve(
+                    Listener { ch: ch.clone(), client },
+                    name.clone(),
+                    // MaxNotificationSize = MTU − 3 (ATT 헤더)
+                    max as usize,
                     key,
                     inbox_rx,
                     encoded.clone(),
@@ -237,13 +238,12 @@ fn subscribed_clients(ch: &GattLocalCharacteristic) -> HashMap<String, GattSubsc
 struct Listener {
     ch: GattLocalCharacteristic,
     client: GattSubscribedClient,
-    name: String,
 }
 
-impl Listener {
-    async fn notify(&self, data: &[u8]) -> Result<(), String> {
+impl PhoneLink for Listener {
+    async fn send(&mut self, packet: &[u8]) -> Result<(), String> {
         // IBuffer는 Send가 아니라서 await 전에 버린다
-        let op = buffer(data)
+        let op = buffer(packet)
             .and_then(|buf| self.ch.NotifyValueForSubscribedClientAsync(&buf, &self.client))
             .map_err(|e| e.to_string())?;
         let result = op.await.map_err(|e| e.to_string())?;
@@ -252,70 +252,6 @@ impl Listener {
             s => Err(format!("전송 실패 (상태 {})", s.0)),
         }
     }
-}
-
-async fn listener_loop(
-    to: Listener,
-    key: Key,
-    mut inbox: mpsc::UnboundedReceiver<Vec<u8>>,
-    encoded: EncodedTx,
-    mut stop: watch::Receiver<bool>,
-    count: Arc<AtomicUsize>,
-) {
-    let name = to.name.clone();
-    // MaxNotificationSize = MTU − 3 (ATT 헤더). 속성 최대 길이 512
-    let max = to.client.MaxNotificationSize().unwrap_or(20) as usize;
-    let mut packetizer = Packetizer::new(max.clamp(20, 512));
-
-    // 1. 열쇠 확인: 문제 → 폰의 답 → PC 증명 (docs/PROTOCOL.md 5절)
-    let hs = Handshake::new(key);
-    if let Err(e) = to.notify(&packetizer.control_with(CONTROL_CHALLENGE, hs.challenge())).await {
-        println!("[ble] {name} 연결 끊김: {e}");
-        return;
-    }
-    let pc_proof = match tokio::time::timeout(REPLY_TIMEOUT, inbox.recv()).await {
-        Ok(Some(reply)) => hs.verify(&reply),
-        _ => None,
-    };
-    let Some(pc_proof) = pc_proof else {
-        let _ = to.notify(&packetizer.control(CONTROL_AUTH_FAIL)).await;
-        println!("[ble] {name} 확인 실패 (열쇠가 다르거나 답이 없음). 소리를 보내지 않음");
-        return;
-    };
-    if let Err(e) = to.notify(&packetizer.control_with(CONTROL_AUTH_OK, &pc_proof)).await {
-        println!("[ble] {name} 연결 끊김: {e}");
-        return;
-    }
-    println!("[ble] {name} 확인 통과");
-
-    // 2. 소리 보내기
-    count.fetch_add(1, Ordering::Relaxed);
-    let mut rx = encoded.subscribe();
-    loop {
-        let received = tokio::select! {
-            r = rx.recv() => r,
-            // stop 값은 false → true 로 한 번만 바뀐다
-            _ = stop.changed() => {
-                let _ = to.notify(&packetizer.control(CONTROL_STOP)).await;
-                println!("[ble] {name} 공유 중지 알림");
-                break;
-            }
-        };
-        let enc = match received {
-            Ok(u) => u,
-            Err(broadcast::error::RecvError::Lagged(n)) => {
-                println!("[ble] {name} 전송 밀림, 조각 {n}개 건너뜀");
-                continue;
-            }
-            Err(broadcast::error::RecvError::Closed) => break,
-        };
-        let Some(packet) = packetizer.packet_for(enc.codec, &enc.data) else { continue };
-        if let Err(e) = to.notify(&packet).await {
-            println!("[ble] {name} 연결 끊김: {e}");
-            break;
-        }
-    }
-    count.fetch_sub(1, Ordering::Relaxed);
 }
 
 fn buffer(data: &[u8]) -> windows::core::Result<IBuffer> {

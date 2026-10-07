@@ -8,7 +8,7 @@ PC(`src-tauri/`)와 폰 앱(`android/`)이 서로 맞춰야 하는 값은 전부
 | UUID·광고 | `src-tauri/src/ble.rs`(Linux), `ble_windows.rs`(Windows) | `Protocol.kt`, `AudioService.kt`(스캔 필터) |
 | QR 링크 | `src-tauri/src/link.rs` | `Protocol.kt` |
 | 패킷 헤더·제어 메시지 | `src-tauri/src/codec/packet.rs` | `Protocol.kt` |
-| 연결 확인 계산 | `src-tauri/src/auth/` | `Auth.kt` (주고받기는 `AudioService.kt`) |
+| 연결 확인 계산·순서 | `src-tauri/src/auth/` (계산), `listener.rs` (순서) | `Auth.kt` (주고받기는 `AudioService.kt`) |
 | 코덱 번호 | `src-tauri/src/codec/mod.rs` | `Codecs.kt` |
 
 ## 1. 찾기: QR과 광고

@@ -1,12 +1,10 @@
 // BLE 송신 (Linux/BlueZ). PC가 광고(peripheral)하고 폰 앱이 찾아와 구독(central)한다.
-// 인코딩된 데이터(encoding.rs)를 받아, 구독한 폰마다 열쇠 확인을 거친 뒤 notify로 패킷을 계속 밀어 보낸다.
+// 구독한 폰마다 확인·소리 보내기(listener.rs)를 돌리고, 그 폰에 notify로 보내는 방법만 여기서 준다.
 
-use crate::auth::{Handshake, Key, REPLY_TIMEOUT};
-use crate::codec::packet::{
-    Packetizer, CONTROL_AUTH_FAIL, CONTROL_AUTH_OK, CONTROL_CHALLENGE, CONTROL_STOP,
-};
+use crate::auth::Key;
 use crate::device_id::{device_id_hex, DeviceId};
 use crate::encoding::EncodedTx;
+use crate::listener::{self, PhoneLink};
 use bluer::{
     adv::{Advertisement, AdvertisementHandle},
     gatt::local::{
@@ -22,7 +20,7 @@ use std::collections::HashMap;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 use tokio::io::AsyncWriteExt;
-use tokio::sync::{broadcast, mpsc, watch};
+use tokio::sync::{mpsc, watch};
 use tokio::task::JoinSet;
 
 // UUID·광고 형식은 docs/PROTOCOL.md
@@ -163,8 +161,9 @@ pub async fn start(encoded: EncodedTx, id: DeviceId, key: Key) -> Result<BleServ
     Ok(BleServer { _adv: adv, _app: app, accept_task, listeners, stop_tx })
 }
 
+// 구독이 끝나면 그 폰의 쓰기 통로도 치운다
 async fn listener_loop(
-    mut writer: CharacteristicWriter,
+    writer: CharacteristicWriter,
     key: Key,
     inbox: mpsc::UnboundedReceiver<Vec<u8>>,
     inboxes: Inboxes,
@@ -173,76 +172,17 @@ async fn listener_loop(
     count: Arc<AtomicUsize>,
 ) {
     let addr = writer.device_address();
-    // ATT 헤더 3바이트 제외, 속성 최대 길이 512
-    let mut packetizer = Packetizer::new(writer.mtu().saturating_sub(3).clamp(20, 512));
-    if authenticate(&mut writer, &mut packetizer, key, inbox).await {
-        count.fetch_add(1, Ordering::Relaxed);
-        send_audio(&mut writer, &mut packetizer, encoded, stop).await;
-        count.fetch_sub(1, Ordering::Relaxed);
-    }
+    // ATT 헤더 3바이트 제외
+    let max = writer.mtu().saturating_sub(3);
+    listener::serve(Notifier(writer), addr.to_string(), max, key, inbox, encoded, stop, count).await;
     inboxes.lock().unwrap().remove(&addr);
 }
 
-/// 열쇠 확인: 문제 → 폰의 답 → PC 증명 (docs/PROTOCOL.md 5절). 통과하면 true
-async fn authenticate(
-    writer: &mut CharacteristicWriter,
-    packetizer: &mut Packetizer,
-    key: Key,
-    mut inbox: mpsc::UnboundedReceiver<Vec<u8>>,
-) -> bool {
-    let addr = writer.device_address();
-    let hs = Handshake::new(key);
-    if let Err(e) = writer.write_all(&packetizer.control_with(CONTROL_CHALLENGE, hs.challenge())).await {
-        println!("[ble] {addr} 연결 끊김: {e}");
-        return false;
-    }
-    let pc_proof = match tokio::time::timeout(REPLY_TIMEOUT, inbox.recv()).await {
-        Ok(Some(reply)) => hs.verify(&reply),
-        _ => None,
-    };
-    let Some(pc_proof) = pc_proof else {
-        let _ = writer.write_all(&packetizer.control(CONTROL_AUTH_FAIL)).await;
-        println!("[ble] {addr} 확인 실패 (열쇠가 다르거나 답이 없음). 소리를 보내지 않음");
-        return false;
-    };
-    if let Err(e) = writer.write_all(&packetizer.control_with(CONTROL_AUTH_OK, &pc_proof)).await {
-        println!("[ble] {addr} 연결 끊김: {e}");
-        return false;
-    }
-    println!("[ble] {addr} 확인 통과");
-    true
-}
+/// BlueZ는 구독한 폰마다 통로(writer)를 주고, 거기 쓰면 notify 하나로 나간다
+struct Notifier(CharacteristicWriter);
 
-async fn send_audio(
-    writer: &mut CharacteristicWriter,
-    packetizer: &mut Packetizer,
-    encoded: EncodedTx,
-    mut stop: watch::Receiver<bool>,
-) {
-    let addr = writer.device_address();
-    let mut rx = encoded.subscribe();
-    loop {
-        let received = tokio::select! {
-            r = rx.recv() => r,
-            // stop 값은 false → true 로 한 번만 바뀐다
-            _ = stop.changed() => {
-                let _ = writer.write_all(&packetizer.control(CONTROL_STOP)).await;
-                println!("[ble] {addr} 공유 중지 알림");
-                break;
-            }
-        };
-        let enc = match received {
-            Ok(u) => u,
-            Err(broadcast::error::RecvError::Lagged(n)) => {
-                println!("[ble] {addr} 전송 밀림, 조각 {n}개 건너뜀");
-                continue;
-            }
-            Err(broadcast::error::RecvError::Closed) => break,
-        };
-        let Some(packet) = packetizer.packet_for(enc.codec, &enc.data) else { continue };
-        if let Err(e) = writer.write_all(&packet).await {
-            println!("[ble] {addr} 연결 끊김: {e}");
-            break;
-        }
+impl PhoneLink for Notifier {
+    async fn send(&mut self, packet: &[u8]) -> Result<(), String> {
+        self.0.write_all(packet).await.map_err(|e| e.to_string())
     }
 }
