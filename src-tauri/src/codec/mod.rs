@@ -35,8 +35,8 @@ impl Codec {
 
     pub fn name(self) -> &'static str {
         match self {
-            Codec::OpusStereo64k => "Opus 48kHz 스테레오 64kbps",
-            Codec::OpusStereo128k => "Opus 48kHz 스테레오 128kbps",
+            Codec::OpusStereo64k => "Opus 64kbps (기본)",
+            Codec::OpusStereo128k => "Opus 128kbps (고음질)",
         }
     }
 }

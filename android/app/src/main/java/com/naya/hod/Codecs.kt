@@ -25,8 +25,8 @@ object Codecs {
 
     /** 패킷 헤더의 코덱 번호 → 디코더. 이 앱이 모르는 번호면 null (앱 업데이트 필요) */
     fun decoder(id: Int): Decoder? = when (id) {
-        OPUS_64K_STEREO -> OpusStereo(OPUS_64K_STEREO, "Opus 48kHz 스테레오 64kbps")
-        OPUS_128K_STEREO -> OpusStereo(OPUS_128K_STEREO, "Opus 48kHz 스테레오 128kbps")
+        OPUS_64K_STEREO -> OpusStereo(OPUS_64K_STEREO, "Opus 64kbps (기본)")
+        OPUS_128K_STEREO -> OpusStereo(OPUS_128K_STEREO, "Opus 128kbps (고음질)")
         else -> null
     }
 
