@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ShareYourSounds | PC 소리를 블루투스로 폰에서 듣는 앱</title>
+  <meta
+    name="description"
+    content="ShareYourSounds(HearOneDevice)는 Windows 또는 Linux PC의 시스템 소리를 블루투스(BLE)로 안드로이드 폰에 보내는 무료 앱입니다. 이어폰은 폰에만 연결해 두고 PC 소리를 듣습니다. QR 코드로 연결하고 GitHub Releases에서 다운로드할 수 있습니다."
+  />
+  <meta name="google-site-verification" content="eQ3RrBbazR1qoyHq-RUpEo0JYm2AYhQxp8BEe2yOUxM" />
+  <meta name="robots" content="index,follow,max-image-preview:large" />
+  <meta name="googlebot" content="index,follow,max-image-preview:large" />
+  <meta name="theme-color" content="#1F1F1E" />
+  <link rel="canonical" href="https://naya1228.github.io/HearOneDevice/" />
+  <link rel="sitemap" type="application/xml" href="https://naya1228.github.io/HearOneDevice/sitemap.xml" />
+  <link rel="icon" type="image/svg+xml" href="https://raw.githubusercontent.com/naya1228/HearOneDevice/main/public/sharing.svg" />
+  <meta property="og:locale" content="ko_KR" />
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="ShareYourSounds" />
+  <meta property="og:title" content="ShareYourSounds | PC 소리를 블루투스로 폰에서 듣는 앱" />
+  <meta
+    property="og:description"
+    content="Windows 또는 Linux PC의 시스템 소리를 블루투스로 안드로이드 폰에 보냅니다. 앱을 켜고 QR 코드를 찍으면 바로 재생됩니다."
+  />
+  <meta property="og:url" content="https://naya1228.github.io/HearOneDevice/" />
+  <meta property="og:image" content="https://raw.githubusercontent.com/naya1228/HearOneDevice/main/public/sharing.svg" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="ShareYourSounds | PC 소리를 블루투스로 폰에서 듣는 앱" />
+  <meta
+    name="twitter:description"
+    content="Windows 또는 Linux PC의 시스템 소리를 블루투스로 안드로이드 폰에 보냅니다."
+  />
+  <meta name="twitter:image" content="https://raw.githubusercontent.com/naya1228/HearOneDevice/main/public/sharing.svg" />
+  <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "SoftwareApplication",
+      "name": "ShareYourSounds",
+      "alternateName": "HearOneDevice",
+      "applicationCategory": "UtilitiesApplication",
+      "operatingSystem": "Windows, Linux, Android",
+      "isAccessibleForFree": true,
+      "url": "https://naya1228.github.io/HearOneDevice/",
+      "downloadUrl": "https://github.com/naya1228/HearOneDevice/releases/latest",
+      "image": "https://raw.githubusercontent.com/naya1228/HearOneDevice/main/public/sharing.svg",
+      "description": "Windows 또는 Linux PC의 시스템 소리를 블루투스(BLE)로 안드로이드 폰에 보내는 무료 앱입니다. QR 코드로 연결하고 GitHub Releases에서 다운로드할 수 있습니다.",
+      "offers": {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "USD"
+      },
+      "sameAs": [
+        "https://github.com/naya1228/HearOneDevice"
+      ]
+    }
+  </script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: #1F1F1E;
+      color: #fff;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      min-height: 100dvh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    /* ── Hero ── */
+    .hero {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 80px 24px 64px;
+      text-align: center;
+      max-width: 640px;
+      width: 100%;
+    }
+
+    .hero img {
+      width: 96px;
+      height: 96px;
+      border-radius: 16px;
+      margin-bottom: 24px;
+    }
+
+    .hero h1 {
+      font-size: 2.6rem;
+      font-weight: 700;
+      letter-spacing: -0.5px;
+      margin-bottom: 16px;
+    }
+
+    .hero h1 span { color: #FD6000; }
+
+    .hero p {
+      color: #9A9A9A;
+      font-size: 1.1rem;
+      line-height: 1.7;
+      margin-bottom: 36px;
+    }
+
+    .btn-download {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      background: #FD6000;
+      color: #fff;
+      font-size: 1rem;
+      font-weight: 600;
+      padding: 14px 32px;
+      border-radius: 8px;
+      text-decoration: none;
+      transition: opacity 0.15s;
+    }
+    .btn-download:hover { opacity: 0.85; }
+
+    .platform-note {
+      margin-top: 12px;
+      font-size: 0.82rem;
+      color: #666;
+    }
+
+    /* ── How it works ── */
+    .section {
+      width: 100%;
+      max-width: 720px;
+      padding: 0 24px 80px;
+    }
+
+    .section h2 {
+      font-size: 1.2rem;
+      font-weight: 600;
+      color: #FD6000;
+      margin-bottom: 24px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    .steps {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .step {
+      display: flex;
+      align-items: flex-start;
+      gap: 16px;
+      background: #2A2A29;
+      border-radius: 10px;
+      padding: 18px 20px;
+    }
+
+    .step-num {
+      flex-shrink: 0;
+      width: 32px;
+      height: 32px;
+      background: #FD6000;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-size: 0.9rem;
+    }
+
+    .step-text strong {
+      display: block;
+      font-size: 0.95rem;
+      margin-bottom: 4px;
+    }
+
+    .step-text span {
+      color: #888;
+      font-size: 0.875rem;
+      line-height: 1.5;
+    }
+
+    /* ── Firewall ── */
+    .firewall-box {
+      background: #2A2A29;
+      border-radius: 10px;
+      padding: 20px 24px;
+    }
+
+    .firewall-desc {
+      color: #C8C7C0;
+      font-size: 0.95rem;
+      margin-bottom: 14px;
+      line-height: 1.6;
+    }
+
+    .firewall-desc code {
+      color: #FD6000;
+      font-family: monospace;
+    }
+
+    .firewall-code {
+      background: #1A1A19;
+      border-radius: 6px;
+      padding: 14px 16px;
+      font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', monospace;
+      font-size: 0.83rem;
+      color: #9A9990;
+      line-height: 1.8;
+      margin: 0;
+      white-space: pre;
+      overflow-x: auto;
+      width: 100%;
+      box-sizing: border-box;
+      display: block;
+    }
+
+    /* ── Stack ── */
+    .tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 8px;
+    }
+
+    .tag {
+      background: #2A2A29;
+      border: 1px solid #3A3A39;
+      color: #ccc;
+      font-size: 0.82rem;
+      padding: 6px 14px;
+      border-radius: 20px;
+    }
+
+    /* ── Footer ── */
+    footer {
+      margin-top: auto;
+      padding: 24px;
+      color: #555;
+      font-size: 0.8rem;
+      text-align: center;
+    }
+
+    footer a { color: #FD6000; text-decoration: none; }
+    footer a:hover { text-decoration: underline; }
+
+    /* ── Divider ── */
+    .divider {
+      width: 100%;
+      max-width: 720px;
+      height: 1px;
+      background: #2A2A29;
+      margin: 0 24px 64px;
+    }
+  </style>
+</head>
+<body>
+
+  <section class="hero">
+    <img src="https://raw.githubusercontent.com/naya1228/HearOneDevice/main/public/sharing.svg" alt="ShareYourSounds icon" onerror="this.style.display='none'" />
+    <h1>Share<span>Your</span>Sounds</h1>
+    <p>
+      이어폰은 폰에만 연결해 두고 PC 소리를 들으세요.<br />
+      PC 소리가 블루투스로 폰에 와서 폰 소리와 함께 나옵니다.<br />
+      인터넷이 없어도, 폰 화면이 꺼져도 계속 재생됩니다.
+    </p>
+    <a
+      class="btn-download"
+      href="https://github.com/naya1228/HearOneDevice/releases/latest"
+      target="_blank"
+      rel="noopener noreferrer"
+    >
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+        <polyline points="7 10 12 15 17 10"/>
+        <line x1="12" y1="15" x2="12" y2="3"/>
+      </svg>
+      최신 버전 다운로드
+    </a>
+    <p class="platform-note">PC: Windows · Linux (.msi / .exe / .AppImage / .deb) &nbsp;·&nbsp; 폰: Android 8.0 이상 (.apk)</p>
+  </section>
+
+  <div class="divider"></div>
+
+  <section class="section">
+    <h2>사용 방법</h2>
+    <div class="steps">
+      <div class="step">
+        <div class="step-num">1</div>
+        <div class="step-text">
+          <strong>앱 설치</strong>
+          <span>PC에는 PC 앱을, 안드로이드 폰에는 .apk를 설치합니다.</span>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">2</div>
+        <div class="step-text">
+          <strong>공유 시작</strong>
+          <span>PC 앱에서 "공유 시작"을 누르면 QR 코드가 표시됩니다.</span>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">3</div>
+        <div class="step-text">
+          <strong>폰에서 QR 스캔</strong>
+          <span>폰 앱으로 QR을 한 번 찍으면 PC가 기록되고 바로 재생됩니다. QR에 실린 열쇠로 확인한 폰에만 소리를 잠가서 보냅니다.</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div class="divider"></div>
+
+  <section class="section">
+    <h2>기술 스택</h2>
+    <div class="tags">
+      <span class="tag">React + TypeScript</span>
+      <span class="tag">Rust · Tauri 2</span>
+      <span class="tag">Bluetooth LE</span>
+      <span class="tag">Opus</span>
+      <span class="tag">AES-256-GCM</span>
+      <span class="tag">Windows / Linux</span>
+      <span class="tag">PulseAudio · WASAPI</span>
+      <span class="tag">Android (Kotlin)</span>
+    </div>
+  </section>
+
+  <footer>
+    <a href="https://github.com/naya1228/HearOneDevice" target="_blank" rel="noopener noreferrer">GitHub</a>
+    &nbsp;·&nbsp;
+    MIT License
+  </footer>
+
+</body>
+</html>

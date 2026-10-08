@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://naya1228.github.io/HearOneDevice/sitemap.xml
