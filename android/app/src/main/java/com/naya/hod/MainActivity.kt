@@ -155,16 +155,14 @@ class MainActivity : Activity() {
         connectLink(link)
     }
 
-    // QR로 받은 PC를 기록에 넣고 연결. 주소·열쇠가 없는 QR은 거절 (docs/PROTOCOL.md 1절)
+    // QR로 받은 PC를 기록에 넣고 연결. 열쇠가 없는 QR은 거절 (docs/PROTOCOL.md 1절)
     private fun connectLink(link: Protocol.Link) {
-        when {
-            link.key == null -> render("PC 앱이 옛 버전이에요. PC 앱을 업데이트해 주세요")
-            link.addr == null -> render("PC 블루투스 주소를 못 읽었어요. PC 블루투스를 켜고 QR을 다시 찍어 주세요")
-            else -> {
-                SavedPcs.remember(this, link)
-                connect(link.id)
-            }
+        if (link.key == null) {
+            render("PC 앱이 옛 버전이에요. PC 앱을 업데이트해 주세요")
+            return
         }
+        SavedPcs.remember(this, link)
+        connect(link.id)
     }
 
     private fun scanQr() {

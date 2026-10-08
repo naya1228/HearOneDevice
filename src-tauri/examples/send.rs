@@ -18,8 +18,7 @@ async fn main() -> Result<(), String> {
     let (_encoding, encoded) = encoding::start(&tx, codec_rx);
     // 테스트용 고정 번호·열쇠. 아래 링크를 QR로 만들어 폰으로 찍는다
     let (id, key) = ([0x00, 0xc0, 0xff, 0xee], [0x11; 32]);
-    let addr = ble::adapter_address().await?;
-    println!("연결 링크: {}", link::connect_link(&id, Some(&addr), &key, "send-example"));
+    println!("연결 링크: {}", link::connect_link(&id, &key, "send-example"));
     let server = ble::start(encoded, id, key).await?;
     let _capture = capture::start(tx)?;
     println!("송신 중. Ctrl+C로 종료");

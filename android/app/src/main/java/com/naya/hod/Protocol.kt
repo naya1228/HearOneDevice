@@ -10,21 +10,19 @@ object Protocol {
     // 알림 구독을 켜는 표준 디스크립터
     val CCCD_UUID: UUID = UUID.fromString("00002902-0000-1000-8000-00805f9b34fb")
 
-    /** QR 링크에서 꺼낸 값. addr = PC 블루투스 주소 ("AA:BB:CC:DD:EE:FF"), key = 확인용 열쇠 (16진수 64자리) */
-    data class Link(val id: String, val addr: String?, val key: String?, val name: String?)
+    /** QR 링크에서 꺼낸 값. key = 확인용 열쇠 (16진수 64자리) */
+    data class Link(val id: String, val key: String?, val name: String?)
 
-    /** hearone://connect?id=1a2b3c4d&addr=98fe3ee10527&key=<64자리>&name=... (칸 순서는 상관없음). 형식이 틀린 칸은 null */
+    /** hearone://connect?id=1a2b3c4d&key=<64자리>&name=... (칸 순서는 상관없음, 모르는 칸은 무시). 형식이 틀린 칸은 null */
     fun parseLink(link: String?): Link? {
         val m = Regex("""^hearone://connect\?(.*)$""").find(link?.trim() ?: return null) ?: return null
         val q = m.groupValues[1].split("&").mapNotNull { kv ->
             kv.split("=", limit = 2).takeIf { it.size == 2 }?.let { it[0] to it[1] }
         }.toMap()
         val id = q["id"]?.takeIf { it.matches(Regex("[0-9a-fA-F]{8}")) }?.lowercase() ?: return null
-        val addr = q["addr"]?.takeIf { it.matches(Regex("[0-9a-fA-F]{12}")) }
-            ?.uppercase()?.chunked(2)?.joinToString(":")
         val key = q["key"]?.takeIf { it.matches(Regex("[0-9a-fA-F]{64}")) }?.lowercase()
         val name = q["name"]?.takeIf { it.isNotEmpty() }?.let { runCatching { URLDecoder.decode(it, "UTF-8") }.getOrNull() }
-        return Link(id, addr, key, name)
+        return Link(id, key, name)
     }
 
     fun hexBytes(hex: String): ByteArray = ByteArray(hex.length / 2) { hex.substring(it * 2, it * 2 + 2).toInt(16).toByte() }

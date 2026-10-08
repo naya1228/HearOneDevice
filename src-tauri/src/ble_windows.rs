@@ -1,6 +1,6 @@
 // BLE 송신 (Windows/WinRT). PC가 광고(peripheral)하고 폰 앱이 찾아와 구독(central)한다.
 // 구독한 폰마다 확인·소리 보내기(listener.rs)를 돌리고, 그 폰에 notify로 보내는 방법만 여기서 준다.
-// 바깥에서 보는 모양(adapter_address·start·listeners·stop)은 ble.rs(Linux)와 같다.
+// 바깥에서 보는 모양(start·listeners·stop)은 ble.rs(Linux)와 같다.
 
 use crate::auth::Key;
 use crate::device_id::{device_id_hex, DeviceId};
@@ -19,7 +19,7 @@ use windows::Devices::Bluetooth::GenericAttributeProfile::{
     GattServiceProviderAdvertisingParameters, GattSubscribedClient, GattWriteOption,
     GattWriteRequestedEventArgs,
 };
-use windows::Devices::Bluetooth::{BluetoothAdapter, BluetoothError};
+use windows::Devices::Bluetooth::BluetoothError;
 use windows::Foundation::TypedEventHandler;
 use windows::Storage::Streams::{DataReader, DataWriter, IBuffer};
 
@@ -29,16 +29,6 @@ const AUDIO_CHAR_UUID: GUID = GUID::from_u128(0x5e7a0002_3c1b_4f6e_9d2a_7b1c0e5a
 
 /// 폰마다(장치 ID 문자열) 그 폰이 쓴 바이트를 받는 청취자 쪽 통로
 type Inboxes = Arc<Mutex<HashMap<String, mpsc::UnboundedSender<Vec<u8>>>>>;
-
-/// 이 PC의 블루투스 주소 6바이트. 폰이 QR로 받아 이 주소로 연결한다 (docs/PROTOCOL.md 1절)
-pub async fn adapter_address() -> Result<[u8; 6], String> {
-    let adapter = BluetoothAdapter::GetDefaultAsync()
-        .map_err(|e| e.to_string())?
-        .await
-        .map_err(|e| format!("블루투스 어댑터 없음: {e}"))?;
-    let addr = adapter.BluetoothAddress().map_err(|e| e.to_string())?;
-    Ok(addr.to_be_bytes()[2..].try_into().expect("u64의 뒤 6바이트"))
-}
 
 /// drop되면 광고·GATT 등록이 해제되고 모든 전송이 멈춘다.
 pub struct BleServer {

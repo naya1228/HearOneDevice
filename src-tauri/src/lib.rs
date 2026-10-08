@@ -29,8 +29,6 @@ struct AppState {
     id: device_id::DeviceId,
     /// QR로 폰에 건네는 확인용 열쇠
     key: auth::Key,
-    /// QR에 싣는 블루투스 주소. 블루투스가 꺼져 있으면 못 읽어서, 읽힐 때까지 다시 시도
-    addr: std::sync::Mutex<Option<[u8; 6]>>,
     /// QR에 싣는 PC 이름
     name: String,
     /// 지금 고른 코덱. 공유 중에 바꾸면 인코더가 다음 조각부터 따라간다
@@ -86,16 +84,11 @@ async fn end_sharing(state: &AppState) {
 
 #[tauri::command]
 async fn sharing_status(state: State<'_, AppState>) -> Result<Status, String> {
-    let cached = *state.addr.lock().unwrap();
-    let addr = match cached {
-        Some(a) => Some(a),
-        None => ble::adapter_address().await.ok().inspect(|a| *state.addr.lock().unwrap() = Some(*a)),
-    };
     let guard = state.sharing.lock().await;
     Ok(Status {
         running: guard.is_some(),
         listeners: guard.as_ref().map_or(0, |s| s.ble.listeners()),
-        link: link::connect_link(&state.id, addr.as_ref(), &state.key, &state.name),
+        link: link::connect_link(&state.id, &state.key, &state.name),
         name: state.name.clone(),
         codec: state.codec.borrow().id(),
     })
@@ -124,7 +117,6 @@ pub fn run() {
                 sharing: Mutex::new(None),
                 id: device_id::load_device_id(dir.clone()),
                 key: auth::load_key(dir),
-                addr: std::sync::Mutex::new(None),
                 name: link::pc_name(),
                 codec: watch::channel(Codec::DEFAULT).0,
             });

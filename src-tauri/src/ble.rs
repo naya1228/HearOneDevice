@@ -64,16 +64,6 @@ impl Drop for BleServer {
     }
 }
 
-/// 이 PC의 블루투스 주소 6바이트. 폰이 QR로 받아 이 주소로 연결한다 (docs/PROTOCOL.md 1절)
-pub async fn adapter_address() -> Result<[u8; 6], String> {
-    let session = bluer::Session::new().await.map_err(|e| format!("BlueZ 연결 실패: {e}"))?;
-    let adapter = session
-        .default_adapter()
-        .await
-        .map_err(|e| format!("블루투스 어댑터 없음: {e}"))?;
-    Ok(adapter.address().await.map_err(|e| e.to_string())?.0)
-}
-
 pub async fn start(encoded: EncodedTx, id: DeviceId, key: Key) -> Result<BleServer, String> {
     let session = bluer::Session::new().await.map_err(|e| format!("BlueZ 연결 실패: {e}"))?;
     let adapter = session
