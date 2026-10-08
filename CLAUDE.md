@@ -56,7 +56,7 @@ PC 시스템 소리 → 블루투스(BLE) → 안드로이드 앱에서 재생. 
 - 2026-10-08 Windows PC + S25: UUID 후보 찾기·열쇠 확인·잠긴 소리 재생까지 정상 (사용자 실사용).
 - 2026-10-08 Windows PC에 S25가 블루투스 기기로 등록돼 있으면 연결할 때 폰에 페어링("등록") 창이 뜨고 취소하면 끊김. 등록을 지우면 정상이라 지운 상태로 씀. Microsoft Q&A 사례로는 칩(Intel AC 8260)에 따라 생기는 문제로 보고됨.
 - 2026-10-08 Windows에서도 안드로이드 빌드 (사용자 요청): 재부팅 없이 Windows PC와 바로 맞춰 시험하려고. SDK `%LOCALAPPDATA%\Android\Sdk`, Gradle 실행용 JDK 21 `%LOCALAPPDATA%\Programs\jdk-21…`, 프로젝트가 요구하는 JetBrains JDK 25는 자동 다운로드 주소(foojay)가 400이라 직접 받아 `~/.gradle/gradle.properties`의 `org.gradle.java.installations.paths`에 적음. 디버그 서명 열쇠가 OS마다 달라 다른 OS에서 빌드한 앱으로 덮어 설치가 안 됨(지우고 설치 → 폰 기록 초기화).
-- 2026-10-08 블루투스 버전이 main을 완전히 대체 (사용자 결정, 0.4.0): Linux·Windows 둘 다 실사용 확인됨. 웹 버전은 v0.3.0 태그로 꺼낼 수 있음. Pages 소개 페이지(`docs/index.html`)와 릴리스 워크플로는 main에서 가져와 블루투스 내용으로 바꿈. 릴리스 APK는 한 열쇠로 서명(저장소 Secrets): 디버그 서명은 PC마다 달라 덮어 설치가 안 되기 때문.
+- 2026-10-08 블루투스 버전이 main을 완전히 대체 (사용자 결정, 0.4.0): Linux·Windows 둘 다 실사용 확인됨. 웹 버전은 v0.3.0 태그로 꺼낼 수 있음. Pages 소개 페이지(`docs/index.html`)와 릴리스 워크플로는 main에서 가져와 블루투스 내용으로 바꿈. 릴리스 APK는 한 열쇠로 서명(`apk-build` 환경의 Secrets): 디버그 서명은 PC마다 달라 덮어 설치가 안 되기 때문.
 
 ## 코드 규칙 (모듈화 유지)
 - **한 파일 = 한 가지 기능.** 새 기능은 기존 파일에 끼워 넣지 말고 파일을 따로 만든다.

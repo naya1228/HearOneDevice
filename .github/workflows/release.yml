@@ -103,6 +103,8 @@ jobs:
   build-android:
     # 릴리스는 build-linux의 tauri-action이 만듦. 그 뒤에 APK를 붙임
     needs: build-linux
+    # 서명 열쇠 Secrets는 이 환경에만 있음
+    environment: apk-build
     runs-on: ubuntu-22.04
     permissions:
       contents: write
