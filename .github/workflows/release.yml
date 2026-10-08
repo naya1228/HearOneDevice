@@ -1,0 +1,137 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build-linux:
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libappindicator3-dev \
+            librsvg2-dev \
+            patchelf \
+            libpulse-dev \
+            libdbus-1-dev \
+            libopus-dev
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: './src-tauri -> target'
+
+      - run: npm ci
+
+      - name: Test
+        run: cargo test
+        working-directory: src-tauri
+
+      - uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: 'HearOneDevice ${{ github.ref_name }}'
+          releaseBody: |
+            ## 설치 방법
+
+            PC 앱과 폰 앱을 둘 다 설치합니다. PC 앱에서 "공유 시작" → 폰 앱으로 QR 스캔.
+
+            ### PC — Windows
+            - `.msi` — Windows 설치 프로그램
+            - `.exe` (NSIS) — 설치 프로그램
+
+            ### PC — Linux (PulseAudio 또는 PipeWire, BlueZ 필요)
+            - `.AppImage` — 압축 해제 없이 바로 실행
+            - `.deb` — Ubuntu/Debian 계열 패키지
+
+            ### 폰 — Android 8.0 이상
+            - `.apk` — 폰에서 내려받아 설치 (출처를 알 수 없는 앱 설치 허용 필요)
+
+            ## 동작 방식
+
+            PC 소리를 블루투스(BLE)로 폰에 보냅니다. 인터넷·Wi-Fi가 필요 없습니다.
+            QR에 실린 열쇠로 확인한 폰에만 소리를 잠가서 보냅니다.
+          releaseDraft: false
+          prerelease: false
+
+  build-windows:
+    runs-on: windows-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: './src-tauri -> target'
+
+      - run: npm ci
+
+      - uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: 'HearOneDevice ${{ github.ref_name }}'
+          releaseDraft: false
+          prerelease: false
+
+  build-android:
+    # 릴리스는 build-linux의 tauri-action이 만듦. 그 뒤에 APK를 붙임
+    needs: build-linux
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      # gradle-daemon-jvm.properties가 JetBrains JDK 25를 요구함
+      - uses: actions/setup-java@v4
+        with:
+          distribution: jetbrains
+          java-version: 25
+
+      - name: Decode signing key
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/release.jks"
+
+      - name: Build APK
+        working-directory: android
+        env:
+          HOD_KEYSTORE: ${{ runner.temp }}/release.jks
+          HOD_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          HOD_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          HOD_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: ./gradlew assembleRelease
+
+      - name: Upload APK
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          cp android/app/build/outputs/apk/release/app-release.apk "HearOneDevice_${GITHUB_REF_NAME#v}.apk"
+          gh release upload "$GITHUB_REF_NAME" "HearOneDevice_${GITHUB_REF_NAME#v}.apk"
