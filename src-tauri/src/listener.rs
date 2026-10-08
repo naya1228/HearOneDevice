@@ -32,9 +32,24 @@ pub async fn serve(
     // 속성 최대 길이 512
     let mut packetizer = Packetizer::new(max_packet.clamp(20, 512));
     if authenticate(&mut link, &mut packetizer, &name, key, inbox).await {
-        count.fetch_add(1, Ordering::Relaxed);
+        let _counted = Counted::new(count);
         send_audio(&mut link, &mut packetizer, &name, encoded, stop).await;
-        count.fetch_sub(1, Ordering::Relaxed);
+    }
+}
+
+/// 살아 있는 동안 청취자 수에 1을 더한다. OS 파일이 구독이 끊긴 폰의 작업을 중간에 끊어도(abort) 빠진다
+struct Counted(Arc<AtomicUsize>);
+
+impl Counted {
+    fn new(count: Arc<AtomicUsize>) -> Self {
+        count.fetch_add(1, Ordering::Relaxed);
+        Self(count)
+    }
+}
+
+impl Drop for Counted {
+    fn drop(&mut self) {
+        self.0.fetch_sub(1, Ordering::Relaxed);
     }
 }
 
@@ -227,6 +242,19 @@ mod tests {
         pc.task.await.unwrap();
         // 끝났으므로 더 보낸 것 없음
         assert!(pc.sent.recv().await.is_none());
+        assert_eq!(pc.count.load(Ordering::Relaxed), 0);
+    }
+
+    // Windows는 구독이 끊긴 폰의 작업을 중간에 끊음 → 청취자 수가 남으면 안 됨
+    #[tokio::test]
+    async fn aborted_listener_is_not_counted() {
+        let mut pc = start_pc();
+        answer(&mut pc, &KEY).await;
+        while pc.count.load(Ordering::Relaxed) == 0 {
+            tokio::task::yield_now().await;
+        }
+        pc.task.abort();
+        let _ = (&mut pc.task).await;
         assert_eq!(pc.count.load(Ordering::Relaxed), 0);
     }
 
