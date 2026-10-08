@@ -44,8 +44,8 @@ class AudioService : Service() {
         private const val NOTIFICATION_ID = 1
         // PC는 5초 안에 답이 없으면 실패로 봄 (docs/PROTOCOL.md 5절). 폰은 여유를 두고 기다림
         private const val AUTH_TIMEOUT_MS = 10_000L
-        // QR 주소의 광고를 이만큼 먼저 기다린 뒤, 없으면 다른 HearOne PC에 붙어 확인으로 가림 (docs/PROTOCOL.md 1절)
-        private const val PREFER_QR_MS = 1500L
+        // 찾기 시작 후 이만큼 광고를 모은 뒤 가장 센 후보에 붙음 (마지막으로 통과한 PC가 보이면 바로)
+        private const val COLLECT_MS = 1000L
         // 확인에 이만큼 연속으로 떨어지면 내 PC가 근처에 없거나 열쇠가 바뀐 것으로 보고 멈춤
         private const val MAX_REJECTIONS = 5
 
@@ -69,13 +69,12 @@ class AudioService : Service() {
     private var wakeLock: PowerManager.WakeLock? = null
     private var scanning = false
     private var targetId: String? = null
-    // 이번 듣기에서 확인에 떨어진 PC 주소들 (남의 PC). 주소가 바뀌면 다시 시도될 수 있음
-    private val rejected = mutableSetOf<String>()
-    private var rejections = 0
-    // 지금 연결 중인 PC 주소, QR 주소가 아닌 첫 후보
+    // 광고로는 내 PC를 가릴 수 없어서 HearOne PC에 차례로 붙어 열쇠로 확인 (Candidates.kt)
+    private val candidates = Candidates()
+    private val seenDevices = mutableMapOf<String, BluetoothDevice>()
     private var connectingAddr: String? = null
-    private var candidate: BluetoothDevice? = null
-    private var preferQrOver = false
+    // 이번 연결이 확인을 통과했는지 (끊겼을 때 "연결 안 됨"과 구별)
+    private var passed = false
     // 확인에 떨어져 끊는 중이면 끊김 문구를 덮어쓰지 않음
     private var leavingRejected = false
     // 연결 확인 (docs/PROTOCOL.md 5·6절). GATT 콜백 스레드에서만 바꿈 (패킷 순서대로 처리하려고)
@@ -119,6 +118,7 @@ class AudioService : Service() {
             // 재생 중에 다른 PC의 QR을 찍으면 그 PC로 갈아탐
             if (id != targetId) {
                 targetId = id
+                candidates.reset()
                 stopScan()
                 gatt?.disconnect() // 끊김 처리(onConnectionStateChange)에서 새 번호로 다시 찾음
                 if (gatt == null) scan()
@@ -126,6 +126,7 @@ class AudioService : Service() {
             return
         }
         targetId = id
+        candidates.reset()
         isRunning = true
         startForegroundCompat(notification("연결 준비 중"))
         wakeLock = getSystemService(PowerManager::class.java)
@@ -171,34 +172,66 @@ class AudioService : Service() {
         lastSeq = -1
         unknownCodec = 0
         unsealFailed = 0
-        val id = targetId ?: return
+        if (targetId == null) return
         setStatus("${pcLabel()} 찾는 중...")
-        // QR로 받은 주소에서 우리 서비스를 광고하는 PC만 (docs/PROTOCOL.md 1절)
-        val addr = SavedPcs.find(this, id)?.addr?.ifEmpty { null }
-            ?: return stopWith("이 PC는 QR을 다시 찍어야 해요")
-        val filter = ScanFilter.Builder()
-            .setDeviceAddress(addr)
-            .setServiceUuid(ParcelUuid(Protocol.SERVICE_UUID))
-            .build()
+        // 우리 서비스를 광고하는 PC 전부가 후보. 내 PC인지는 연결 뒤 열쇠로 확인 (docs/PROTOCOL.md 1절)
+        candidates.newRound()
+        seenDevices.clear()
+        val filter = ScanFilter.Builder().setServiceUuid(ParcelUuid(Protocol.SERVICE_UUID)).build()
         val settings = ScanSettings.Builder().setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY).build()
         scanner.startScan(listOf(filter), settings, scanCallback)
         scanning = true
+        handler.postDelayed(pickCandidate, COLLECT_MS)
     }
 
     private fun stopScan() {
+        handler.removeCallbacks(pickCandidate)
         if (!scanning) return
         scanning = false
         runCatching { bluetooth?.bluetoothLeScanner?.stopScan(scanCallback) }
     }
 
+    // 모은 후보 중 하나에 붙음. 아직 없으면 조금 더 찾음
+    private val pickCandidate: Runnable = Runnable {
+        if (!scanning) return@Runnable
+        val device = candidates.pick()?.let { seenDevices[it] }
+        if (device == null) {
+            handler.postDelayed(pickCandidate, COLLECT_MS)
+            return@Runnable
+        }
+        connectTo(device)
+    }
+
+    private fun connectTo(device: BluetoothDevice) {
+        stopScan()
+        connectingAddr = device.address
+        passed = false
+        setStatus("${pcLabel()} 후보 발견, 연결 중...")
+        gatt = device.connectGatt(this, false, gattCallback, BluetoothDevice.TRANSPORT_LE)
+    }
+
+    // 확인에 떨어짐 (남의 PC이거나 열쇠가 다름) → 끊고 다음 후보. 메인 스레드에서 호출
+    private fun rejectCurrent() {
+        connectingAddr?.let { candidates.reject(it) }
+        resetAuth()
+        if (candidates.rejections >= MAX_REJECTIONS) {
+            stopWith("${pcLabel()}을(를) 찾지 못했어요. 계속 안 되면 PC의 QR을 다시 찍어 주세요")
+            return
+        }
+        leavingRejected = true
+        setStatus("다른 PC였어요. 다시 찾는 중...")
+        val g = gatt
+        if (g != null) g.disconnect() else scan()
+    }
+
     private val scanCallback = object : ScanCallback() {
         override fun onScanResult(callbackType: Int, result: ScanResult) {
             if (!scanning) return
-            stopScan()
-            setStatus("${pcLabel()} 발견, 연결 중...")
-            gatt = result.device.connectGatt(
-                this@AudioService, false, gattCallback, BluetoothDevice.TRANSPORT_LE
-            )
+            val addr = result.device.address
+            seenDevices[addr] = result.device
+            candidates.offer(addr, result.rssi)
+            // 마지막으로 통과한 PC면 기다리지 않고 바로
+            if (addr == candidates.lastGood) connectTo(result.device)
         }
 
         override fun onScanFailed(errorCode: Int) {
@@ -222,8 +255,13 @@ class AudioService : Service() {
                 if (gatt == g) gatt = null
                 resetAuth()
                 playing = false
-                if (isRunning) {
-                    setStatus("끊김, 다시 찾는 중...")
+                handler.post {
+                    if (!isRunning) return@post
+                    // 확인까지 못 가고 끊긴 주소는 이미 바뀌었을 수 있음 (Windows는 광고 주소를 바꿈)
+                    val addr = connectingAddr
+                    if (addr != null && !passed && !leavingRejected) candidates.unreachable(addr)
+                    if (!leavingRejected) setStatus("끊김, 다시 찾는 중...")
+                    leavingRejected = false
                     handler.postDelayed({ scan() }, 1000)
                 }
             }
@@ -238,8 +276,7 @@ class AudioService : Service() {
             val ch = g.getService(Protocol.SERVICE_UUID)?.getCharacteristic(Protocol.AUDIO_CHAR_UUID)
             val desc = ch?.getDescriptor(Protocol.CCCD_UUID)
             if (ch == null || desc == null) {
-                setStatus("PC 앱 버전이 맞지 않음")
-                g.disconnect()
+                handler.post { rejectCurrent() }
                 return
             }
             // PC는 구독을 받자마자 문제를 보내고, 그게 구독 완료(onDescriptorWrite)보다 먼저 올 수 있음 → 구독 전에 준비
@@ -324,22 +361,23 @@ class AudioService : Service() {
             Protocol.CONTROL_AUTH_OK -> {
                 val a = auth
                 val key = a?.takeIf { it.checkPc(body) }?.audioKey()
+                // PC 증명이 틀림 = 내 열쇠를 모르는 PC
                 if (key == null) {
-                    handler.post { stopWith("PC 확인에 실패해 끊었어요 (진짜 PC가 아닐 수 있음)") }
+                    handler.post { rejectCurrent() }
                     return
                 }
                 // 이 패킷 바로 다음부터 잠겨 옴
                 unsealer = Unsealer(key, packet.seq.toLong())
                 handler.post {
                     handler.removeCallbacks(authTimeout)
+                    passed = true
+                    connectingAddr?.let { candidates.accept(it) }
                     playing = true
                     setStatus("${pcLabel()} 연결됨")
                 }
             }
-            // PC는 열쇠가 다를 때와 답이 안 왔을 때를 구별하지 않음 (docs/PROTOCOL.md 4절)
-            Protocol.CONTROL_AUTH_FAIL -> handler.post {
-                stopWith("연결 확인에 실패했어요. 다시 시도해 보고, 계속 안 되면 PC의 QR을 다시 찍어 주세요")
-            }
+            // 내 답이 틀림 = 이 PC는 다른 열쇠를 가짐 (남의 PC이거나 내 PC의 열쇠가 바뀜)
+            Protocol.CONTROL_AUTH_FAIL -> handler.post { rejectCurrent() }
         }
     }
 
@@ -360,8 +398,8 @@ class AudioService : Service() {
         }
     }
 
-    // 정해진 시간 안에 확인이 안 끝나면 옛 PC 앱이거나 문제가 있는 것
-    private val authTimeout = Runnable { stopWith("PC가 연결 확인에 답하지 않아요. PC 앱을 업데이트해 주세요") }
+    // 정해진 시간 안에 확인이 안 끝나면 옛 PC 앱이거나 문제가 있는 PC → 다음 후보
+    private val authTimeout = Runnable { rejectCurrent() }
 
     private fun resetAuth() {
         handler.removeCallbacks(authTimeout)
