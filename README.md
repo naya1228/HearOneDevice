@@ -16,7 +16,9 @@ HearOneDevice streams your PC's system audio to your Android phone over Bluetoot
 - **Multipoint auto-switching.** With earbuds connected to both PC and phone, audio I was listening to on the phone kept getting switched over to the PC.
 - **Only one source at a time.** I wanted to hear the PC and the phone together (a video on the PC plus notifications and calls on the phone).
 
-The earlier web version ([v0.3.0](https://github.com/naya1228/HearOneDevice/releases/tag/v0.3.0)) sent audio over the network to the phone's browser. On the library's internal network the phone couldn't reach the PC, so I tried going through a relay server, but the audio quality wasn't good enough and I gave up on it. A browser also can't guarantee playback with the screen off. So this version uses a native Android app and a direct Bluetooth link, with no network in between.
+At first, an AI assistant told me Bluetooth had too many limits for this, so I built a Wi-Fi/web version instead ([v0.3.0](https://github.com/naya1228/HearOneDevice/releases/tag/v0.3.0)) that sent audio over the network to the phone's browser. On the library's internal network the phone couldn't reach the PC, so I tried going through a relay server, but the audio quality wasn't good enough and I gave up on it. A browser also can't guarantee playback with the screen off.
+
+So I rewrote it over Bluetooth, and it worked: a native Android app and a direct Bluetooth link, with no network in between. The lesson I took from it: to judge whether an AI's "that won't work" is actually true, you need enough background knowledge of your own.
 
 I use it every day on my laptop at school and in the library, where the 2.4 GHz band is crowded.
 
@@ -98,7 +100,9 @@ HearOneDevice는 PC 시스템 소리를 블루투스(BLE)로 안드로이드 폰
 - **멀티포인트 자동 전환.** 이어폰을 PC와 폰에 같이 연결해 두면 폰 소리를 듣다가 PC로 넘어가 버렸습니다.
 - **소리는 한 번에 하나.** PC와 폰 소리를 같이 듣고 싶었습니다 (PC로 영상 보면서 폰 알림·통화).
 
-이전 웹 버전([v0.3.0](https://github.com/naya1228/HearOneDevice/releases/tag/v0.3.0))은 네트워크로 폰 브라우저에 소리를 보냈습니다. 도서관 내부망에서는 폰이 PC에 연결되지 않아 중계 서버를 거치는 방식도 써봤지만, 음질 때문에 그만뒀습니다. 브라우저로는 화면이 꺼졌을 때 재생을 보장할 수도 없었습니다. 그래서 이 버전은 네트워크 없이 안드로이드 네이티브 앱과 블루투스 직접 연결로 다시 만들었습니다.
+처음에는 AI가 블루투스 방식은 한계가 있다고 해서 Wi-Fi(웹) 버전으로 만들었습니다([v0.3.0](https://github.com/naya1228/HearOneDevice/releases/tag/v0.3.0), 네트워크로 폰 브라우저에 소리를 보냄). 그런데 도서관 내부망에서는 폰이 PC에 연결되지 않아 중계 서버를 거치는 방식도 써봤지만, 음질 때문에 그만뒀습니다. 브라우저로는 화면이 꺼졌을 때 재생을 보장할 수도 없었습니다.
+
+그래서 블루투스로 다시 만들었고, 실제로 됐습니다. 지금은 네트워크 없이 안드로이드 네이티브 앱과 블루투스 직접 연결로 동작합니다. AI가 "안 된다"고 할 때 그 말이 맞는지 판단하려면, 결국 나 스스로 배경지식이 있어야 한다는 걸 배운 프로젝트입니다.
 
 학교·도서관(혼잡한 2.4GHz)에서 노트북으로 매일 쓰고 있습니다.
 
