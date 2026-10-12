@@ -20,7 +20,7 @@ At first, an AI assistant told me, roughly: *"Bluetooth is hard for this. BLE ca
 
 So I rewrote it over Bluetooth anyway, and now I listen to music through it in Opus 48 kHz stereo. The lesson I took from it: to judge whether an AI's "that won't work" is actually true, you need enough background knowledge of your own.
 
-I use it every day on my laptop at school and in the library, where the 2.4 GHz band is crowded.
+With my own phone (Galaxy S25) and earbuds, I've listened to it in my school's library, in lecture rooms, and on the subway without anything feeling off. The delay feels like about 0.1 seconds (by ear, not measured).
 
 ### Requirements
 
@@ -49,7 +49,7 @@ system audio ─► Opus encode ─► AES-256-GCM ─► BLE notify ─► decr
 
 - **Discovery:** the PC advertises a service UUID. The phone treats every PC advertising it as a candidate and connects, and the key check (below) tells it which one is yours. It tries the last PC that passed first, then by signal strength.
 - **Codec:** Opus 48 kHz stereo — 64 kbps by default (less airtime, better in crowded places), 128 kbps as a high-quality option. Switchable live from the PC app; the phone picks the decoder from the packet header.
-- **Measured (Galaxy S25, Android 16):** MTU 517, 0 packet loss, playback continues with the screen off, 2–3 hours of YouTube in one sitting with no audible dropouts. The jitter buffer targets 80 ms, favoring low latency over riding out bursts.
+- **Latency over buffering:** the phone's jitter buffer targets 80 ms, favoring low latency over riding out bursts.
 - **Stop:** when the PC stops sharing it sends a control packet, so the phone stops instead of searching again. The phone plays a short chime on connect and disconnect, so you know without looking at the screen.
 
 ### Security
@@ -104,7 +104,7 @@ HearOneDevice는 PC 시스템 소리를 블루투스(BLE)로 안드로이드 폰
 
 그래도 블루투스로 다시 만들었고, 지금은 Opus 48kHz 스테레오로 음악을 듣고 있습니다. AI가 "안 된다"고 할 때 그 말이 맞는지 판단하려면, 결국 나 스스로 배경지식이 있어야 한다는 걸 배운 프로젝트입니다.
 
-학교·도서관(혼잡한 2.4GHz)에서 노트북으로 매일 쓰고 있습니다.
+제 폰(Galaxy S25)과 이어폰으로 학교 도서관, 강의실, 지하철에서 어색함 없이 들었습니다. 지연은 체감으로 0.1초쯤입니다(귀로 느낀 것이라 정확하지 않음).
 
 ### 필요한 것
 
@@ -133,7 +133,7 @@ PC                                                         안드로이드 폰
 
 - **찾기:** PC는 서비스 UUID를 광고합니다. 폰은 그 UUID를 광고하는 PC를 모두 후보로 보고 붙어서, 아래 열쇠 확인으로 내 PC를 가립니다. 마지막으로 통과한 PC부터, 그다음은 신호 센 순서로 시도합니다.
 - **코덱:** Opus 48kHz 스테레오. 기본 64kbps(전파를 덜 써서 혼잡한 곳에 유리), 고음질 옵션 128kbps. PC 앱에서 재생 중에 바꿀 수 있고, 폰은 패킷 헤더를 보고 디코더를 고릅니다.
-- **실측 (Galaxy S25, Android 16):** MTU 517, 패킷 손실 0, 화면 꺼짐에도 재생 유지, 유튜브 2~3시간 연속 재생에도 귀로 들리는 끊김 없음. 지터 버퍼 목표는 80ms로, 몰려 오는 지연을 버티기보다 지연이 짧은 쪽을 택했습니다.
+- **지연 우선:** 폰의 지터 버퍼 목표는 80ms로, 몰려 오는 지연을 버티기보다 지연이 짧은 쪽을 택했습니다.
 - **멈춤:** PC가 공유를 끝내면 제어 패킷을 보내, 폰이 다시 찾지 않고 멈춥니다. 폰은 연결·해제 때 짧은 알림음을 내서 화면을 안 봐도 알 수 있습니다.
 
 ### 보안
