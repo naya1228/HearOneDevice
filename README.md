@@ -18,7 +18,7 @@ HearOneDevice streams your PC's system audio to your Android phone over Bluetoot
 
 At first, an AI assistant told me, roughly: *"Bluetooth is hard for this. BLE can carry about 16 kHz mono — phone-call quality, not enough for music. Receiving like earbuds do over A2DP would be ideal, but phones aren't built to receive music, so Android doesn't expose that to apps."* So I built a Wi-Fi/web version instead ([v0.3.0](https://github.com/naya1228/HearOneDevice/releases/tag/v0.3.0)) that sent audio over the network to the phone's browser. On the library's internal network the phone couldn't reach the PC, so I tried going through a relay server, but the audio quality wasn't good enough and I gave up on it. A browser also can't guarantee playback with the screen off.
 
-So I rewrote it over Bluetooth anyway. The A2DP part was right, but the BLE part wasn't: the Bluetooth version also started at 16 kHz mono, yet measured on a Galaxy S25 it carried 49 KB/s with zero loss. Opus 48 kHz stereo at 128 kbps needs only 16 KB/s, so music quality fits easily. The lesson I took from it: to judge whether an AI's "that won't work" is actually true, you need enough background knowledge of your own.
+So I rewrote it over Bluetooth anyway. The Bluetooth version also started at 16 kHz mono, but measured on a Galaxy S25 it could carry 49 KB/s. Opus 48 kHz stereo at 128 kbps needs only 16 KB/s, so music quality fits easily. The lesson I took from it: to judge whether an AI's "that won't work" is actually true, you need enough background knowledge of your own.
 
 I use it every day on my laptop at school and in the library, where the 2.4 GHz band is crowded.
 
@@ -102,7 +102,7 @@ HearOneDevice는 PC 시스템 소리를 블루투스(BLE)로 안드로이드 폰
 
 처음에 AI에게 들은 말은 대략 이랬습니다: *"블루투스로는 어렵습니다. BLE로 보낼 수 있는 건 16kHz 모노 정도인데, 그건 전화 통화 수준이라 음악을 듣기엔 부족하고 원래 소리를 온전히 전달할 수 없습니다. 이어폰처럼 A2DP로 받으면 좋겠지만, 휴대폰은 음악을 받는 장치가 아니라서 그 기능을 앱에 열어 주지 않습니다."* 그래서 Wi-Fi(웹) 버전으로 만들었습니다([v0.3.0](https://github.com/naya1228/HearOneDevice/releases/tag/v0.3.0), 네트워크로 폰 브라우저에 소리를 보냄). 그런데 도서관 내부망에서는 폰이 PC에 연결되지 않아 중계 서버를 거치는 방식도 써봤지만, 음질 때문에 그만뒀습니다. 브라우저로는 화면이 꺼졌을 때 재생을 보장할 수도 없었습니다.
 
-그래도 블루투스로 다시 만들었습니다. A2DP 얘기는 맞았지만 BLE 얘기는 틀렸습니다. 블루투스 버전도 16kHz 모노로 시작했는데, Galaxy S25에서 재보니 초당 49KB까지 손실 없이 보내졌습니다. Opus 48kHz 스테레오 128kbps는 초당 16KB면 되니 음악 음질도 넉넉합니다. AI가 "안 된다"고 할 때 그 말이 맞는지 판단하려면, 결국 나 스스로 배경지식이 있어야 한다는 걸 배운 프로젝트입니다.
+그래도 블루투스로 다시 만들었습니다. 블루투스 버전도 16kHz 모노로 시작했는데, Galaxy S25에서 재보니 초당 49KB까지 보낼 수 있었습니다. Opus 48kHz 스테레오 128kbps는 초당 16KB면 되니 음악 음질도 넉넉합니다. AI가 "안 된다"고 할 때 그 말이 맞는지 판단하려면, 결국 나 스스로 배경지식이 있어야 한다는 걸 배운 프로젝트입니다.
 
 학교·도서관(혼잡한 2.4GHz)에서 노트북으로 매일 쓰고 있습니다.
 
@@ -133,7 +133,7 @@ PC                                                         안드로이드 폰
 
 - **찾기:** PC는 서비스 UUID를 광고합니다. 폰은 그 UUID를 광고하는 PC를 모두 후보로 보고 붙어서, 아래 열쇠 확인으로 내 PC를 가립니다. 마지막으로 통과한 PC부터, 그다음은 신호 센 순서로 시도합니다.
 - **코덱:** Opus 48kHz 스테레오. 기본 64kbps(전파를 덜 써서 혼잡한 곳에 유리), 고음질 옵션 128kbps. PC 앱에서 재생 중에 바꿀 수 있고, 폰은 패킷 헤더를 보고 디코더를 고릅니다.
-- **실측 (Galaxy S25, Android 16):** MTU 517, 손실 0, 화면 꺼짐에도 재생 유지, 유튜브 2~3시간 연속 재생에도 귀로 들리는 끊김 없음. 지터 버퍼 목표는 80ms로, 몰려 오는 지연을 버티기보다 지연이 짧은 쪽을 택했습니다.
+- **실측 (Galaxy S25, Android 16):** MTU 517, 패킷 손실 0, 화면 꺼짐에도 재생 유지, 유튜브 2~3시간 연속 재생에도 귀로 들리는 끊김 없음. 지터 버퍼 목표는 80ms로, 몰려 오는 지연을 버티기보다 지연이 짧은 쪽을 택했습니다.
 - **멈춤:** PC가 공유를 끝내면 제어 패킷을 보내, 폰이 다시 찾지 않고 멈춥니다. 폰은 연결·해제 때 짧은 알림음을 내서 화면을 안 봐도 알 수 있습니다.
 
 ### 보안
