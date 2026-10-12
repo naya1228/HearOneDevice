@@ -16,7 +16,7 @@ HearOneDevice streams your PC's system audio to your Android phone over Bluetoot
 - **Multipoint auto-switching.** With earbuds connected to both PC and phone, audio I was listening to on the phone kept getting switched over to the PC.
 - **Only one source at a time.** I wanted to hear the PC and the phone together (a video on the PC plus notifications and calls on the phone).
 
-The earlier web version ([v0.3.0](https://github.com/naya1228/HearOneDevice/releases/tag/v0.3.0): Cloudflare tunnel + phone browser) needed an internet connection, and a browser can't guarantee playback with the screen off (and Web Bluetooth doesn't work on iOS either). So this version uses a native Android app and a direct Bluetooth link.
+The earlier web version ([v0.3.0](https://github.com/naya1228/HearOneDevice/releases/tag/v0.3.0)) sent audio over the network to the phone's browser. On the library's internal network the phone couldn't reach the PC, so I tried going through a relay server, but the audio quality wasn't good enough and I gave up on it. A browser also can't guarantee playback with the screen off. So this version uses a native Android app and a direct Bluetooth link, with no network in between.
 
 I use it every day on my laptop at school and in the library, where the 2.4 GHz band is crowded.
 
@@ -53,8 +53,6 @@ system audio ─► Opus encode ─► AES-256-GCM ─► BLE notify ─► decr
 ### Security
 
 The QR code carries a key that is handed over once. On every connection the PC and phone verify each other with it, and audio is sent only to a verified phone, encrypted with AES-256-GCM. A phone that never scanned the QR can't listen, and sniffing the radio reveals nothing. Details in [docs/PROTOCOL.md](docs/PROTOCOL.md).
-
-Accepted risk: while sharing, the fixed service UUID makes the PC's presence visible nearby.
 
 ### Development
 
@@ -100,7 +98,7 @@ HearOneDevice는 PC 시스템 소리를 블루투스(BLE)로 안드로이드 폰
 - **멀티포인트 자동 전환.** 이어폰을 PC와 폰에 같이 연결해 두면 폰 소리를 듣다가 PC로 넘어가 버렸습니다.
 - **소리는 한 번에 하나.** PC와 폰 소리를 같이 듣고 싶었습니다 (PC로 영상 보면서 폰 알림·통화).
 
-이전 웹 버전([v0.3.0](https://github.com/naya1228/HearOneDevice/releases/tag/v0.3.0): Cloudflare 터널 + 폰 브라우저)은 인터넷이 필요했고, 브라우저로는 화면이 꺼졌을 때 재생을 보장할 수 없었습니다(Web Bluetooth는 iOS도 미지원). 그래서 이 버전은 안드로이드 네이티브 앱과 블루투스 직접 연결로 다시 만들었습니다.
+이전 웹 버전([v0.3.0](https://github.com/naya1228/HearOneDevice/releases/tag/v0.3.0))은 네트워크로 폰 브라우저에 소리를 보냈습니다. 도서관 내부망에서는 폰이 PC에 연결되지 않아 중계 서버를 거치는 방식도 써봤지만, 음질 때문에 그만뒀습니다. 브라우저로는 화면이 꺼졌을 때 재생을 보장할 수도 없었습니다. 그래서 이 버전은 네트워크 없이 안드로이드 네이티브 앱과 블루투스 직접 연결로 다시 만들었습니다.
 
 학교·도서관(혼잡한 2.4GHz)에서 노트북으로 매일 쓰고 있습니다.
 
@@ -137,8 +135,6 @@ PC                                                         안드로이드 폰
 ### 보안
 
 QR에 실린 열쇠를 한 번 건네고, 연결할 때마다 PC와 폰이 그 열쇠로 서로를 확인합니다. 확인을 통과한 폰에만 소리를 잠가서(AES-256-GCM) 보냅니다. QR을 찍지 않은 폰은 소리를 들을 수 없고, 전파를 엿들어도 내용이 보이지 않습니다. 자세한 방식은 [docs/PROTOCOL.md](docs/PROTOCOL.md).
-
-받아들인 위험: 공유하는 동안에는 고정된 서비스 UUID 때문에 근처에 그 PC가 있다는 것은 드러납니다.
 
 ### 개발
 
