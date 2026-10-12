@@ -12,13 +12,13 @@ HearOneDevice streams your PC's system audio to your Android phone over Bluetoot
 
 ### Why
 
-- **Pairing per PC.** A laptop, a desktop, and each OS on a dual-boot machine all need their own pairing with the same earbuds.
+- **Pairing per PC.** Every PC, and each OS on a dual-boot machine, needs its own pairing with the same earbuds.
 - **Multipoint auto-switching.** With earbuds connected to both PC and phone, one phone notification can pull the audio away from the PC.
 - **Only one source at a time.** I wanted to hear the PC and the phone together (a video on the PC plus notifications and calls on the phone).
 
 The earlier web version ([v0.3.0](https://github.com/naya1228/HearOneDevice/releases/tag/v0.3.0): Cloudflare tunnel + phone browser) needed an internet connection, and a browser can't guarantee playback with the screen off (and Web Bluetooth doesn't work on iOS either). So this version uses a native Android app and a direct Bluetooth link.
 
-I use it every day: a laptop at school and in the library (crowded 2.4 GHz), and a desktop at home (2–3 hours of YouTube in one sitting with no audible dropouts).
+I use it every day on my laptop at school and in the library, where the 2.4 GHz band is crowded.
 
 ### Requirements
 
@@ -47,7 +47,7 @@ system audio ─► Opus encode ─► AES-256-GCM ─► BLE notify ─► decr
 
 - **Discovery:** the PC advertises a service UUID. The phone treats every PC advertising it as a candidate and connects, and the key check (below) tells it which one is yours. It tries the last PC that passed first, then by signal strength.
 - **Codec:** Opus 48 kHz stereo — 64 kbps by default (less airtime, better in crowded places), 128 kbps as a high-quality option. Switchable live from the PC app; the phone picks the decoder from the packet header.
-- **Measured (Galaxy S25, Android 16):** MTU 517, 0 packet loss, playback continues with the screen off. The jitter buffer targets 80 ms, favoring low latency over riding out bursts.
+- **Measured (Galaxy S25, Android 16):** MTU 517, 0 packet loss, playback continues with the screen off, 2–3 hours of YouTube in one sitting with no audible dropouts. The jitter buffer targets 80 ms, favoring low latency over riding out bursts.
 - **Stop:** when the PC stops sharing it sends a control packet, so the phone stops instead of searching again. The phone plays a short chime on connect and disconnect, so you know without looking at the screen.
 
 ### Security
@@ -97,13 +97,13 @@ HearOneDevice는 PC 시스템 소리를 블루투스(BLE)로 안드로이드 폰
 
 ### 왜 만들었나
 
-- **PC마다 페어링.** 노트북, 데스크탑, 듀얼부팅의 OS마다 같은 이어폰을 따로 페어링해야 했습니다.
+- **PC마다 페어링.** PC마다, 듀얼부팅이면 OS마다 같은 이어폰을 따로 페어링해야 했습니다.
 - **멀티포인트 자동 전환.** 이어폰을 PC와 폰에 같이 연결해 두면 폰 알림 하나에 소리가 폰으로 넘어갔습니다.
 - **소리는 한 번에 하나.** PC와 폰 소리를 같이 듣고 싶었습니다 (PC로 영상 보면서 폰 알림·통화).
 
 이전 웹 버전([v0.3.0](https://github.com/naya1228/HearOneDevice/releases/tag/v0.3.0): Cloudflare 터널 + 폰 브라우저)은 인터넷이 필요했고, 브라우저로는 화면이 꺼졌을 때 재생을 보장할 수 없었습니다(Web Bluetooth는 iOS도 미지원). 그래서 이 버전은 안드로이드 네이티브 앱과 블루투스 직접 연결로 다시 만들었습니다.
 
-매일 쓰고 있습니다: 학교·도서관(혼잡한 2.4GHz)에서는 노트북으로, 집에서는 데스크탑으로 (유튜브 2~3시간 연속, 귀로 들리는 끊김 없음).
+학교·도서관(혼잡한 2.4GHz)에서 노트북으로 매일 쓰고 있습니다.
 
 ### 필요한 것
 
@@ -132,7 +132,7 @@ PC                                                         안드로이드 폰
 
 - **찾기:** PC는 서비스 UUID를 광고합니다. 폰은 그 UUID를 광고하는 PC를 모두 후보로 보고 붙어서, 아래 열쇠 확인으로 내 PC를 가립니다. 마지막으로 통과한 PC부터, 그다음은 신호 센 순서로 시도합니다.
 - **코덱:** Opus 48kHz 스테레오. 기본 64kbps(전파를 덜 써서 혼잡한 곳에 유리), 고음질 옵션 128kbps. PC 앱에서 재생 중에 바꿀 수 있고, 폰은 패킷 헤더를 보고 디코더를 고릅니다.
-- **실측 (Galaxy S25, Android 16):** MTU 517, 손실 0, 화면 꺼짐에도 재생 유지. 지터 버퍼 목표는 80ms로, 몰려 오는 지연을 버티기보다 지연이 짧은 쪽을 택했습니다.
+- **실측 (Galaxy S25, Android 16):** MTU 517, 손실 0, 화면 꺼짐에도 재생 유지, 유튜브 2~3시간 연속 재생에도 귀로 들리는 끊김 없음. 지터 버퍼 목표는 80ms로, 몰려 오는 지연을 버티기보다 지연이 짧은 쪽을 택했습니다.
 - **멈춤:** PC가 공유를 끝내면 제어 패킷을 보내, 폰이 다시 찾지 않고 멈춥니다. 폰은 연결·해제 때 짧은 알림음을 내서 화면을 안 봐도 알 수 있습니다.
 
 ### 보안
