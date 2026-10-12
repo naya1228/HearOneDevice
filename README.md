@@ -20,7 +20,7 @@ At first, an AI assistant told me, roughly: *"Bluetooth is hard for this. BLE ca
 
 So I rewrote it over Bluetooth anyway, and now I listen to music through it in Opus 48 kHz stereo. The lesson I took from it: to judge whether an AI's "that won't work" is actually true, you need enough background knowledge of your own.
 
-With my own phone (Galaxy S25) and earbuds, I've listened to it in my school's library, in lecture rooms, and on the subway without anything feeling off. The delay feels like about 0.1 seconds (by ear, not measured).
+With my own phone (Galaxy S25) and earbuds, I've listened to it in my school's library, in lecture rooms, and on the subway without anything feeling off. The delay feels like about 0.1 seconds.
 
 ### Requirements
 
@@ -104,7 +104,7 @@ HearOneDevice는 PC 시스템 소리를 블루투스(BLE)로 안드로이드 폰
 
 그래도 블루투스로 다시 만들었고, 지금은 Opus 48kHz 스테레오로 음악을 듣고 있습니다. AI가 "안 된다"고 할 때 그 말이 맞는지 판단하려면, 결국 나 스스로 배경지식이 있어야 한다는 걸 배운 프로젝트입니다.
 
-제 폰(Galaxy S25)과 이어폰으로 학교 도서관, 강의실, 지하철에서 어색함 없이 들었습니다. 지연은 체감으로 0.1초쯤입니다(귀로 느낀 것이라 정확하지 않음).
+제 폰(Galaxy S25)과 이어폰으로 학교 도서관, 강의실, 지하철에서 어색함 없이 들었습니다. 지연은 체감으로 0.1초쯤입니다.
 
 ### 필요한 것
 
