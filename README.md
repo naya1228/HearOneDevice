@@ -83,7 +83,6 @@ Code layout and rules are in [CLAUDE.md](CLAUDE.md). One file does one thing; ca
 
 - [docs/PROTOCOL.md](docs/PROTOCOL.md) — PC ↔ phone protocol (UUIDs, advertising, packets, key check, encryption)
 - [docs/CODECS.md](docs/CODECS.md) — codec table (Opus 64k default, 128k high quality)
-- [docs/UI.md](docs/UI.md) — PC app layout
 
 ### License
 
@@ -168,7 +167,6 @@ cd android
 
 - [docs/PROTOCOL.md](docs/PROTOCOL.md) — PC ↔ 폰 약속 (UUID, 광고, 패킷, 연결 확인, 잠그기)
 - [docs/CODECS.md](docs/CODECS.md) — 코덱 번호 표 (Opus 64k 기본, 128k 고음질)
-- [docs/UI.md](docs/UI.md) — PC 앱 화면 배치
 
 ### 라이선스
 
