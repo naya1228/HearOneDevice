@@ -13,7 +13,7 @@ HearOneDevice streams your PC's system audio to your Android phone over Bluetoot
 ### Why
 
 - **Pairing per PC.** Every PC, and each OS on a dual-boot machine, needs its own pairing with the same earbuds.
-- **Multipoint auto-switching.** With earbuds connected to both PC and phone, one phone notification can pull the audio away from the PC.
+- **Multipoint auto-switching.** With earbuds connected to both PC and phone, audio I was listening to on the phone kept getting switched over to the PC.
 - **Only one source at a time.** I wanted to hear the PC and the phone together (a video on the PC plus notifications and calls on the phone).
 
 The earlier web version ([v0.3.0](https://github.com/naya1228/HearOneDevice/releases/tag/v0.3.0): Cloudflare tunnel + phone browser) needed an internet connection, and a browser can't guarantee playback with the screen off (and Web Bluetooth doesn't work on iOS either). So this version uses a native Android app and a direct Bluetooth link.
@@ -97,7 +97,7 @@ HearOneDevice는 PC 시스템 소리를 블루투스(BLE)로 안드로이드 폰
 ### 왜 만들었나
 
 - **PC마다 페어링.** PC마다, 듀얼부팅이면 OS마다 같은 이어폰을 따로 페어링해야 했습니다.
-- **멀티포인트 자동 전환.** 이어폰을 PC와 폰에 같이 연결해 두면 폰 알림 하나에 소리가 폰으로 넘어갔습니다.
+- **멀티포인트 자동 전환.** 이어폰을 PC와 폰에 같이 연결해 두면 폰 소리를 듣다가 PC로 넘어가 버렸습니다.
 - **소리는 한 번에 하나.** PC와 폰 소리를 같이 듣고 싶었습니다 (PC로 영상 보면서 폰 알림·통화).
 
 이전 웹 버전([v0.3.0](https://github.com/naya1228/HearOneDevice/releases/tag/v0.3.0): Cloudflare 터널 + 폰 브라우저)은 인터넷이 필요했고, 브라우저로는 화면이 꺼졌을 때 재생을 보장할 수 없었습니다(Web Bluetooth는 iOS도 미지원). 그래서 이 버전은 안드로이드 네이티브 앱과 블루투스 직접 연결로 다시 만들었습니다.
