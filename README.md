@@ -48,7 +48,7 @@ system audio ─► Opus encode ─► AES-256-GCM ─► BLE notify ─► decr
 ```
 
 - **Discovery:** the PC advertises a service UUID. The phone treats every PC advertising it as a candidate and connects, and the key check (below) tells it which one is yours. It tries the last PC that passed first, then by signal strength.
-- **Codec:** Opus 48 kHz stereo — 64 kbps by default (less airtime, better in crowded places), 128 kbps as a high-quality option. Switchable live from the PC app; the phone picks the decoder from the packet header.
+- **Codec:** Opus 48 kHz stereo — 64 kbps by default, 128 kbps for higher quality. Switchable live from the PC app; the phone picks the decoder from the packet header.
 - **Latency over buffering:** the phone's jitter buffer targets 80 ms, favoring low latency over riding out bursts.
 - **Stop:** when the PC stops sharing it sends a control packet, so the phone stops instead of searching again. The phone plays a short chime on connect and disconnect, so you know without looking at the screen.
 
@@ -132,7 +132,7 @@ PC                                                         안드로이드 폰
 ```
 
 - **찾기:** PC는 서비스 UUID를 광고합니다. 폰은 그 UUID를 광고하는 PC를 모두 후보로 보고 붙어서, 아래 열쇠 확인으로 내 PC를 가립니다. 마지막으로 통과한 PC부터, 그다음은 신호 센 순서로 시도합니다.
-- **코덱:** Opus 48kHz 스테레오. 기본 64kbps(전파를 덜 써서 혼잡한 곳에 유리), 고음질 옵션 128kbps. PC 앱에서 재생 중에 바꿀 수 있고, 폰은 패킷 헤더를 보고 디코더를 고릅니다.
+- **코덱:** Opus 48kHz 스테레오. 기본 64kbps, 고음질 128kbps. PC 앱에서 재생 중에 바꿀 수 있고, 폰은 패킷 헤더를 보고 디코더를 고릅니다.
 - **지연 우선:** 폰의 지터 버퍼 목표는 80ms로, 몰려 오는 지연을 버티기보다 지연이 짧은 쪽을 택했습니다.
 - **멈춤:** PC가 공유를 끝내면 제어 패킷을 보내, 폰이 다시 찾지 않고 멈춥니다. 폰은 연결·해제 때 짧은 알림음을 내서 화면을 안 봐도 알 수 있습니다.
 
