@@ -45,6 +45,9 @@ jobs:
       - uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # 자동 업데이트 파일 서명 (공개키는 tauri.conf.json의 plugins.updater.pubkey)
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           tagName: ${{ github.ref_name }}
           releaseName: 'HearOneDevice ${{ github.ref_name }}'
@@ -72,6 +75,8 @@ jobs:
           prerelease: false
 
   build-windows:
+    # latest.json은 잡마다 받아서 합친 뒤 다시 올림. 동시에 돌면 한쪽 플랫폼이 덮어써지므로 차례로
+    needs: build-linux
     runs-on: windows-latest
     permissions:
       contents: write
@@ -94,6 +99,9 @@ jobs:
       - uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # 자동 업데이트 파일 서명 (공개키는 tauri.conf.json의 plugins.updater.pubkey)
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           tagName: ${{ github.ref_name }}
           releaseName: 'HearOneDevice ${{ github.ref_name }}'

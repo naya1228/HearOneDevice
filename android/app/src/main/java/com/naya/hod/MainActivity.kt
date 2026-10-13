@@ -32,6 +32,8 @@ class MainActivity : Activity() {
     private lateinit var statsView: TextView
     private lateinit var listenButton: Button
     private lateinit var historyButton: Button
+    private lateinit var updateButton: Button
+    private var update: Updater.Release? = null
 
     // 권한을 받는 동안 기다리는 연결 요청
     private var pendingId: String? = null
@@ -75,6 +77,8 @@ class MainActivity : Activity() {
             @Suppress("DEPRECATION")
             setOnClickListener { startActivityForResult(Intent(this@MainActivity, HistoryActivity::class.java), REQ_HISTORY) }
         }
+        // 새 버전이 있을 때만 보임 (켤 때 한 번 확인)
+        updateButton = Button(this).apply { visibility = View.GONE }
         statusView = TextView(this).apply {
             setTextColor(Color.rgb(0xFD, 0x60, 0x00))
             setPadding(0, 48, 0, 0)
@@ -106,11 +110,16 @@ class MainActivity : Activity() {
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT,
             ))
+            addView(updateButton, LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+            ))
             addView(statusView)
             addView(statsView)
         })
 
         handleLink(intent)
+        Updater.check(this) { release -> if (release != null) runOnUiThread { showUpdate(release) } }
     }
 
     // 앱이 이미 열린 상태에서 카메라로 QR을 찍은 경우
@@ -125,12 +134,31 @@ class MainActivity : Activity() {
         AudioService.onStats = { s -> runOnUiThread { renderStats(s) } }
         render(AudioService.status)
         renderStats(AudioService.stats)
+        // 설치 확인 화면에서 취소하고 돌아온 경우 버튼을 다시 누를 수 있게
+        update?.let { showUpdate(it) }
     }
 
     override fun onPause() {
         AudioService.onStatus = null
         AudioService.onStats = null
         super.onPause()
+    }
+
+    private fun showUpdate(release: Updater.Release) {
+        update = release
+        updateButton.isEnabled = true
+        updateButton.text = "새 버전 v${release.version} 설치"
+        updateButton.visibility = View.VISIBLE
+        updateButton.setOnClickListener {
+            updateButton.isEnabled = false
+            updateButton.text = "받는 중..."
+            Updater.install(this, release) { error ->
+                runOnUiThread {
+                    render("업데이트를 받지 못했어요: $error")
+                    showUpdate(release)
+                }
+            }
+        }
     }
 
     // 상세 숫자는 개발 모드일 때만
