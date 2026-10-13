@@ -3,11 +3,12 @@ import StatusLine from "../components/StatusLine";
 import CodecSelect from "../components/CodecSelect";
 import CodecWarning from "../components/CodecWarning";
 import ShareButton from "../components/ShareButton";
+import UpdateNotice from "../components/UpdateNotice";
 import type { LayoutProps } from "./LayoutProps";
 
 // 가로 창: 가운데에 좁게. 위 큰 로고·제목, 아래 [QR | 상태·코덱·버튼]
 // 정확히 가운데면 처져 보여서 아래 여백을 조금 더 줘 살짝 위로 올림
-function LandscapeLayout({ status, codecs, busy, error, onToggle, onCodecChange }: LayoutProps) {
+function LandscapeLayout({ status, codecs, busy, error, onToggle, onCodecChange, update }: LayoutProps) {
   return (
     <main className="flex flex-col items-center justify-center gap-8 p-6 pb-[calc(1.5rem+5vh)] min-h-dvh">
       <header className="flex flex-col items-center text-center short:hidden">
@@ -30,6 +31,7 @@ function LandscapeLayout({ status, codecs, busy, error, onToggle, onCodecChange 
       </section>
 
       {error && <p className="text-red-400 text-sm text-center break-all max-w-md">{error}</p>}
+      <UpdateNotice {...update} />
     </main>
   );
 }

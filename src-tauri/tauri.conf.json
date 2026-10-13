@@ -30,6 +30,18 @@
       "icons/128x128@2x.png",
       "icons/icon.icns",
       "icons/icon.ico"
-    ]
+    ],
+    "createUpdaterArtifacts": true
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEQ0M0M5NERCNkE2MjM1OTMKUldTVE5XSnEyNVE4MUFvaUdieFp0SlNIVk5aWXJMdHJQSHhuUm1JallqV2ZLSjF1T0NmS1RkRUgK",
+      "endpoints": [
+        "https://github.com/naya1228/HearOneDevice/releases/latest/download/latest.json"
+      ],
+      "windows": {
+        "installMode": "passive"
+      }
+    }
   }
 }

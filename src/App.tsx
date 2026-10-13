@@ -6,12 +6,14 @@ import type { LayoutProps, Status } from "./layouts/LayoutProps";
 import PortraitLayout from "./layouts/PortraitLayout";
 import LandscapeLayout from "./layouts/LandscapeLayout";
 import TinyLayout from "./layouts/TinyLayout";
+import { useUpdate } from "./useUpdate";
 
 function App() {
   const [status, setStatus] = useState<Status>({ running: false, listeners: 0, link: "", name: "", codec: 0 });
   const [codecs, setCodecs] = useState<CodecInfo[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const update = useUpdate();
 
   useEffect(() => {
     invoke<CodecInfo[]>("codecs").then(setCodecs);
@@ -49,7 +51,7 @@ function App() {
     }
   };
 
-  const props: LayoutProps = { status, codecs, busy, error, onToggle: toggle, onCodecChange: changeCodec };
+  const props: LayoutProps = { status, codecs, busy, error, onToggle: toggle, onCodecChange: changeCodec, update };
   // 창 모양에 따라 하나만 보임: 아주 작으면 상태만, 아니면 높이가 폭보다 크면 세로
   return (
     <>

@@ -3,10 +3,11 @@ import StatusLine from "../components/StatusLine";
 import CodecSelect from "../components/CodecSelect";
 import CodecWarning from "../components/CodecWarning";
 import ShareButton from "../components/ShareButton";
+import UpdateNotice from "../components/UpdateNotice";
 import type { LayoutProps } from "./LayoutProps";
 
 // 세로 창: 작은 헤더, 가운데 QR·상태 카드, 아래 설정 카드와 넓은 버튼
-function PortraitLayout({ status, codecs, busy, error, onToggle, onCodecChange }: LayoutProps) {
+function PortraitLayout({ status, codecs, busy, error, onToggle, onCodecChange, update }: LayoutProps) {
   return (
     <main className="flex flex-col p-4 gap-4 min-h-dvh w-full max-w-md mx-auto">
       <header className="flex items-center gap-3 short:hidden">
@@ -40,6 +41,7 @@ function PortraitLayout({ status, codecs, busy, error, onToggle, onCodecChange }
       {error && <p className="text-red-400 text-sm text-center break-all">{error}</p>}
 
       <ShareButton running={status.running} busy={busy} onClick={onToggle} />
+      <UpdateNotice {...update} />
     </main>
   );
 }
