@@ -12,8 +12,9 @@ android {
         applicationId = "com.naya.hod"
         minSdk = 26
         targetSdk = 37
-        versionCode = 4
+        // 버전 번호는 versionName 한 곳만 바꾼다. versionCode는 거기서 계산 (0.4.0 → 400): 업데이트 설치는 versionCode가 커야 됨
         versionName = "0.4.0"
+        versionCode = versionName!!.split(".").fold(0) { acc, n -> acc * 100 + n.toInt() }
     }
 
     // 릴리스 서명 열쇠는 환경 변수로만 받음 (CI: .github/workflows/release.yml). 없으면 릴리스 APK는 서명 안 됨
