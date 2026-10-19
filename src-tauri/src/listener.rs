@@ -105,7 +105,7 @@ async fn send_audio(
     loop {
         let received = tokio::select! {
             r = rx.recv() => r,
-            _ = stop.changed() => {
+            _ = async { let _ = stop.wait_for(|&s| s).await; } => {
                 let _ = link.send(&packetizer.control(CONTROL_STOP)).await;
                 println!("[ble] {name} 공유 중지 알림");
                 break;
