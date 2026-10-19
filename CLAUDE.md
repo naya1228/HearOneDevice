@@ -1,24 +1,6 @@
-# HearOneDevice — 작업 메모
+# HearOneDevice — 결정 기록
 
-다음 세션의 Claude를 위한 인수인계서. **짧게 유지할 것.**
-
-## 개요
-PC 시스템 소리 → 블루투스(BLE) → 안드로이드 앱에서 재생. 폰 화면이 꺼져도 재생 유지가 목표.
-왜: 이어폰은 폰에만 페어링해 두고 PC 소리를 듣기 위해. 이어폰을 PC마다 페어링하는 귀찮음과 멀티포인트 자동 전환이 거슬리는 문제를 없앰 (PC 소리는 공유 시작할 때만, 폰 소리와 섞여 나옴).
-(웹/Cloudflare 터널 버전은 v0.3.0 태그로 남음. 이 계열은 `cd04425`에서 갈라져 새로 만든 것이고 0.4.0부터 main을 대체)
-
-## 구조
-- `src-tauri/src/capture/` — 소리 캡처 (linux: PulseAudio monitor, windows: cpal 루프백)
-- `src-tauri/src/codec/` — 코덱 번호(`Codec`) + 코덱별 파일(`opus.rs`). 패킷 헤더는 `codec/packet.rs`
-- `src-tauri/src/encoding.rs` — 인코딩 루프. 코덱은 PC 앱 화면에서 실행 중에 고름 (`set_codec` → watch 통로)
-- **코덱 표·바꾸는 법: `docs/CODECS.md`** (앱 `Codecs.kt`는 헤더 번호로 디코더 자동 선택, 양쪽 번호 같아야 함)
-- `src-tauri/src/ble.rs` — BLE 송신 (Linux/BlueZ). 인코딩된 바이트만 받아 나름(코덱 모름). Windows는 `ble_windows.rs` (WinRT, 같은 인터페이스)
-- `src-tauri/src/device_id.rs` — PC 고유 번호 (만들기·저장·16진수)
-- `src-tauri/src/auth/` — 연결 확인: 열쇠(`key.rs`, QR로 건넴)와 확인 계산(`handshake.rs`). 전송과 무관한 공통 부분
-- `src-tauri/src/listener.rs` — 구독한 폰 한 대 처리(확인 → 소리 보내기), OS 무관. OS 파일은 `PhoneLink`(그 폰에 보내기)만 구현
-- `src-tauri/examples/send.rs` — UI 없이 송신 테스트: `cargo run --example send`
-- `android/` — 수신 앱 (Kotlin. Opus 디코딩은 안드로이드 내장 MediaCodec, QR 스캔은 ML Kit). `AudioService`(포그라운드 서비스)가 BLE 수신+재생, `Candidates.kt`가 붙어 볼 PC 후보 순서
-- **PC ↔ 폰 약속(UUID·광고·패킷·제어 메시지): `docs/PROTOCOL.md`** (양쪽이 같아야 함)
+구조·코드 규칙·주석 규칙·기록 규칙은 `docs/DEVELOPMENT.md`.
 
 ## 확정된 결정
 - 브라우저(Web Bluetooth)는 iOS 미지원·화면 꺼짐 보장 불가 → 폰 쪽은 네이티브 앱.
@@ -60,14 +42,3 @@ PC 시스템 소리 → 블루투스(BLE) → 안드로이드 앱에서 재생. 
 - 2026-10-12 화면 기록(`docs/UI.md`, `images/ui/`) 삭제 (사용자 결정): 되돌린 가로 두 칸 배치 캡처뿐이라 지금 화면과 무관. 필요하면 git 이력(3a07931)에 있음.
 - 2026-10-12 README를 영어·한국어 한 파일로, 라이선스 MIT (사용자 결정): 기여가 자원봉사라 문턱을 낮추고, GPL은 코드를 AI로 참고해 다시 만드는 경우엔 지키기 어렵다고 판단.
 - 2026-10-13 자동 업데이트 (사용자 결정): PC(`useUpdate.ts`, tauri updater)·폰(`Updater.kt`) 모두 켤 때 GitHub 최신 릴리스만 확인하고, 설치는 버튼을 눌러야 함: 공유 중에 갑자기 재시작돼 소리가 끊기지 않게. 폰은 사이드로드라 마지막 설치 확인은 어차피 안드로이드가 물음. 폰에 INTERNET 권한이 생겼지만 소리 전송은 여전히 블루투스뿐. PC 업데이트 서명 개인 열쇠는 사용자 PC `~/.tauri/hearonedevice.key`(+`.password`)와 GitHub Secrets에만 있음 — 잃으면 기존 설치본은 더 이상 업데이트를 못 받음.
-
-## 코드 규칙 (모듈화 유지)
-- **한 파일 = 한 가지 기능.** 새 기능은 기존 파일에 끼워 넣지 말고 파일을 따로 만든다.
-- 계층끼리 서로 모르게: 캡처 ↔ 코덱 ↔ 전송(BLE)은 바이트/샘플만 주고받는다. (예: `ble.rs`는 코덱을 모름)
-- 플랫폼별 구현은 같은 인터페이스의 파일로 나눈다 (`capture/linux`·`windows`, `ble.rs`·`ble_windows.rs` 방식).
-- 파일이 두 가지 일을 하기 시작하면 그때 쪼갠다.
-- 규칙·약속(번호 표, 패킷 형식 등)은 `docs/`의 문서 한 곳에만 적는다. 코드 주석에 같은 규칙을 반복하지 말고 문서를 가리키기만 한다.
-
-## 기록 규칙
-- "무엇이/언제" → Stop hook이 자동 기록. "왜" → 위 "확정된 결정"에 한 줄 append.
-- 사실과 결정만 적는다. "나중에/후보/필요해지면" 같은 정하지 않은 미래 작업은 적지 않는다 (다음 세션이 할 일로 오해함).
