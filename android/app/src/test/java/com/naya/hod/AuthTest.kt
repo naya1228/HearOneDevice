@@ -6,7 +6,7 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-// PC의 auth/handshake.rs 테스트와 같은 값 (열쇠 7×32, P = 0..15, F = 9×16)
+// docs/PROTOCOL.md: 시험 값
 class AuthTest {
     private val key = ByteArray(32) { 7 }
     private val pcNonce = ByteArray(16) { it.toByte() }
@@ -23,7 +23,7 @@ class AuthTest {
     @Test
     fun checksPcProof() {
         val auth = Auth(key, phoneNonce)
-        assertFalse(auth.checkPc(pcProof)) // 문제를 받기 전
+        assertFalse(auth.checkPc(pcProof))
         auth.reply(pcNonce)
         assertTrue(auth.checkPc(pcProof))
         assertFalse(auth.checkPc(pcProof.copyOf().also { it[0] = 0 }))

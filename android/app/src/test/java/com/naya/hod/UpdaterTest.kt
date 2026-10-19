@@ -4,6 +4,7 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
+// docs/FEATURES.md: 업데이트
 class UpdaterTest {
     @Test
     fun comparesEachNumber() {
