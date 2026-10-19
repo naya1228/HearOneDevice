@@ -7,7 +7,7 @@
 ## PROTOCOL.md: 찾기
 - Windows는 광고 주소를 바꿔서 확인 전에 끊긴 주소는 이미 바뀌었을 수 있다. 그래서 후보 기억을 이번 듣기 동안만 하게 만들었다.
 - Windows 광고 시작 결과는 나중에 상태로만 알 수 있고, 시작 직후 잠깐 `Aborted`로 보였다가 `Started`로 바뀌기도 했다. 그래서 2초까지 상태를 끝까지 지켜보게 만들었다.
-- 후보(`Candidates`)를 메인 스레드에서만 만지게 만들었다. 안드로이드는 스캔 결과(`onScanResult`)를 메인 스레드로 주고(AOSP `BluetoothLeScanner`가 메인 Looper 핸들러로 넘김), GATT 콜백은 메인이 아닌 스레드에서 와서 `handler.post`로 넘긴다.
+- 안드로이드는 스캔 결과(`onScanResult`)를 메인 스레드로 주고(공개 API 보장이 아니라 AOSP 구현상: `BluetoothLeScanner`가 메인 Looper 핸들러로 넘김, refs/heads/main 기준이고 옛 버전은 안 봄), GATT 콜백은 메인이 아닌 스레드에서 와서, 후보(`Candidates`)는 메인 스레드에서만 만지게 만들었다 (GATT 콜백에선 `handler.post`로 넘김). 그래서 `Candidates`에는 잠금이 없다.
 
 ## PROTOCOL.md: 연결
 - PC는 구독을 받자마자 문제를 보내서, 그게 폰의 구독 완료 신호(`onDescriptorWrite`)보다 먼저 올 수 있었다 (2026-10-07: 다시 연결 때 가끔 5초 뒤 확인 실패). 그래서 폰이 구독 전에 확인 준비(`Auth`)를 끝내게 만들었다.
