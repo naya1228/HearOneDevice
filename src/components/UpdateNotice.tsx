@@ -1,6 +1,6 @@
 import type { UpdateState } from "../useUpdate";
 
-// 새 버전이 있을 때만 한 줄 + 업데이트 버튼
+// docs/FEATURES.md: 업데이트
 function UpdateNotice({ version, installing, error, install }: UpdateState) {
   if (!version) return null;
   return (

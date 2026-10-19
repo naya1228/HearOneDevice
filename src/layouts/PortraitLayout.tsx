@@ -6,7 +6,7 @@ import ShareButton from "../components/ShareButton";
 import UpdateNotice from "../components/UpdateNotice";
 import type { LayoutProps } from "./LayoutProps";
 
-// 세로 창: 작은 헤더, 가운데 QR·상태 카드, 아래 설정 카드와 넓은 버튼
+// docs/FEATURES.md: PC 화면
 function PortraitLayout({ status, codecs, busy, error, onToggle, onCodecChange, update }: LayoutProps) {
   return (
     <main className="flex flex-col p-4 gap-4 min-h-dvh w-full max-w-md mx-auto">
