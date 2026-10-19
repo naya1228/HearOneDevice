@@ -10,10 +10,7 @@ import kotlin.math.cos
 import kotlin.math.min
 import kotlin.math.sin
 
-/**
- * 원 둘레에 막대 BARS개가 바깥으로 뻗는 스펙트럼. 위쪽부터 시계 방향으로 저음 → 고음.
- * 소리는 AudioService.tap 에서 읽는다. 화면에 보일 때만 그려지므로 화면이 꺼지면 계산도 멈춘다.
- */
+// docs/FEATURES.md: 폰 화면
 class CircleVisualizer(context: Context) : View(context) {
 
     private companion object {
@@ -29,7 +26,7 @@ class CircleVisualizer(context: Context) : View(context) {
     private val spectrum = Spectrum(FFT_SIZE, BARS)
     private val samples = FloatArray(FFT_SIZE)
     private val target = FloatArray(BARS)
-    private val level = FloatArray(BARS) // 화면에 그리는 값: 올라갈 땐 바로, 내려갈 땐 천천히
+    private val level = FloatArray(BARS)
     private val density = resources.displayMetrics.density
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = Color.rgb(0xFD, 0x60, 0x00)

@@ -10,13 +10,10 @@ import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
 
-/**
- * PC 연결 기록 화면. 누르면 그 PC 번호를 MainActivity에 돌려주고(연결은 MainActivity가), 길게 누르면 이름 바꾸기·삭제.
- */
+// docs/FEATURES.md: 폰 화면
 class HistoryActivity : Activity() {
 
     companion object {
-        /** 결과 Intent에 담기는 고른 PC 번호 */
         const val EXTRA_ID = "id"
     }
 
