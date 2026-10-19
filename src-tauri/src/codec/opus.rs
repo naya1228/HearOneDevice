@@ -11,7 +11,7 @@ const MAX_FRAME_BYTES: usize = 480;
 pub struct OpusEncoder {
     resampler: Resampler,
     enc: ::opus::Encoder,
-    pending: Vec<f32>,
+    pending_samples: Vec<f32>,
 }
 
 impl OpusEncoder {
@@ -19,21 +19,21 @@ impl OpusEncoder {
         let mut enc = ::opus::Encoder::new(RATE, Channels::Stereo, Application::Audio)
             .expect("Opus 인코더 생성 실패");
         enc.set_bitrate(Bitrate::Bits(bitrate)).expect("Opus 비트레이트 설정 실패");
-        Self { resampler: Resampler::new(RATE, 2), enc, pending: Vec::new() }
+        Self { resampler: Resampler::new(RATE, 2), enc, pending_samples: Vec::new() }
     }
 }
 
 impl Encoder for OpusEncoder {
     fn encode(&mut self, chunk: &AudioChunk) -> Vec<Vec<u8>> {
-        self.pending.extend(self.resampler.process(chunk));
+        self.pending_samples.extend(self.resampler.process(chunk));
         let need = FRAME_LEN * 2;
         let mut frames = Vec::new();
-        while self.pending.len() >= need {
-            match self.enc.encode_vec_float(&self.pending[..need], MAX_FRAME_BYTES) {
+        while self.pending_samples.len() >= need {
+            match self.enc.encode_vec_float(&self.pending_samples[..need], MAX_FRAME_BYTES) {
                 Ok(f) => frames.push(f),
                 Err(e) => println!("[opus] 인코딩 실패: {e}"),
             }
-            self.pending.drain(..need);
+            self.pending_samples.drain(..need);
         }
         frames
     }

@@ -11,30 +11,30 @@ class JitterPlayer(
     private val tap: AudioTap? = null,
 ) {
     private val perMs = rate * channels / 1000
-    private val prebuffer = perMs * PREBUFFER_MS
-    private val target = perMs * TARGET_MS
-    private val max = perMs * MAX_MS
+    private val prebufferSamples = perMs * PREBUFFER_MS
+    private val targetSamples = perMs * TARGET_MS
+    private val maxSamples = perMs * MAX_MS
 
     private val lock = Object()
     private val queue = ArrayDeque<ShortArray>()
-    private var queued = 0
+    private var queuedSamples = 0
 
     @Volatile private var running = false
     private var thread: Thread? = null
 
     @Volatile var underruns = 0; private set
     @Volatile var droppedMs = 0; private set
-    val bufferedMs: Int get() = synchronized(lock) { queued / perMs }
+    val bufferedMs: Int get() = synchronized(lock) { queuedSamples / perMs }
     @Volatile var trackMs = 0; private set
 
     fun push(pcm: ShortArray) {
         if (pcm.isEmpty()) return
         synchronized(lock) {
             queue.addLast(pcm)
-            queued += pcm.size
-            while (queued > max && queue.size > 1) {
+            queuedSamples += pcm.size
+            while (queuedSamples > maxSamples && queue.size > 1) {
                 val old = queue.removeFirst()
-                queued -= old.size
+                queuedSamples -= old.size
                 droppedMs += old.size / perMs
             }
             lock.notifyAll()
@@ -72,12 +72,12 @@ class JitterPlayer(
 
         thread = Thread({
             var primed = false
-            var windowMin = Int.MAX_VALUE
+            var windowMinSamples = Int.MAX_VALUE
             var windowStart = System.nanoTime()
             while (running) {
                 val chunk = synchronized(lock) {
                     when {
-                        !primed && queued < prebuffer -> { lock.wait(WAIT_MS); null }
+                        !primed && queuedSamples < prebufferSamples -> { lock.wait(WAIT_MS); null }
                         queue.isEmpty() -> {
                             primed = false
                             underruns++
@@ -86,13 +86,13 @@ class JitterPlayer(
                         }
                         else -> {
                             primed = true
-                            windowMin = minOf(windowMin, queued)
+                            windowMinSamples = minOf(windowMinSamples, queuedSamples)
                             if (System.nanoTime() - windowStart > TRIM_WINDOW_NS) {
-                                if (windowMin > target) trim((windowMin - target) / channels * channels)
-                                windowMin = Int.MAX_VALUE
+                                if (windowMinSamples > targetSamples) trim((windowMinSamples - targetSamples) / channels * channels)
+                                windowMinSamples = Int.MAX_VALUE
                                 windowStart = System.nanoTime()
                             }
-                            queue.removeFirst().also { queued -= it.size }
+                            queue.removeFirst().also { queuedSamples -= it.size }
                         }
                     }
                 } ?: continue
@@ -110,10 +110,10 @@ class JitterPlayer(
             val head = queue.removeFirst()
             if (head.size <= left) {
                 left -= head.size
-                queued -= head.size
+                queuedSamples -= head.size
             } else {
                 queue.addFirst(head.copyOfRange(left, head.size))
-                queued -= left
+                queuedSamples -= left
                 left = 0
             }
         }
@@ -124,7 +124,7 @@ class JitterPlayer(
         running = false
         synchronized(lock) {
             queue.clear()
-            queued = 0
+            queuedSamples = 0
             lock.notifyAll()
         }
         thread?.join(STOP_JOIN_MS)
