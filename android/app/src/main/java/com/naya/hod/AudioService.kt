@@ -312,7 +312,7 @@ class AudioService : Service() {
         bytesThisSecond += data.size
         synchronized(playLock) {
             if (!isRunning) return
-            val dec = decoder?.takeIf { it.id == packet.codec } ?: switchCodec(packet.codec) ?: return
+            val dec = decoder?.takeIf { it.id == packet.codec } ?: switchCodecLocked(packet.codec) ?: return
             player?.push(dec.decode(packet.data, Protocol.HEADER_LEN))
         }
     }
@@ -377,7 +377,7 @@ class AudioService : Service() {
     }
 
     // docs/CODECS.md: 코덱 바꾸는 법
-    private fun switchCodec(id: Int): Codecs.Decoder? {
+    private fun switchCodecLocked(id: Int): Codecs.Decoder? {
         val dec = runCatching { Codecs.decoder(id) }.onFailure { Log.e("HOD", "디코더 $id 열기 실패", it) }.getOrNull()
         if (dec == null) {
             unknownCodec = id

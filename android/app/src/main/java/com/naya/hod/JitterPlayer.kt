@@ -88,7 +88,7 @@ class JitterPlayer(
                             primed = true
                             windowMinSamples = minOf(windowMinSamples, queuedSamples)
                             if (System.nanoTime() - windowStart > TRIM_WINDOW_NS) {
-                                if (windowMinSamples > targetSamples) trim((windowMinSamples - targetSamples) / channels * channels)
+                                if (windowMinSamples > targetSamples) trimLocked((windowMinSamples - targetSamples) / channels * channels)
                                 windowMinSamples = Int.MAX_VALUE
                                 windowStart = System.nanoTime()
                             }
@@ -104,7 +104,7 @@ class JitterPlayer(
         }, "JitterPlayer").apply { start() }
     }
 
-    private fun trim(n: Int) {
+    private fun trimLocked(n: Int) {
         var left = n
         while (left > 0 && queue.size > 1) {
             val head = queue.removeFirst()
