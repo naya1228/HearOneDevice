@@ -1,9 +1,8 @@
-// 기본 출력 장치를 WASAPI 루프백으로 캡처 (cpal: 출력 장치에 input stream을 열면 루프백)
+// docs/FEATURES.md: 소리 캡처
 use crate::audio::{AudioChunk, AudioTx};
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use std::sync::Arc;
 
-/// drop되면 캡처가 멈춘다.
 pub struct Capture {
     _stream: cpal::Stream,
 }

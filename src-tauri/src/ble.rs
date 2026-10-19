@@ -1,6 +1,4 @@
-// BLE 송신 (Linux/BlueZ). PC가 광고(peripheral)하고 폰 앱이 찾아와 구독(central)한다.
-// 구독한 폰마다 확인·소리 보내기(listener.rs)를 돌리고, 그 폰에 notify로 보내는 방법만 여기서 준다.
-
+// docs/PROTOCOL.md: 찾기, 연결 (Linux)
 use crate::auth::Key;
 use crate::encoding::EncodedTx;
 use crate::listener::{self, PhoneLink, ATT_HEADER_LEN};
@@ -22,14 +20,11 @@ use tokio::io::AsyncWriteExt;
 use tokio::sync::{mpsc, watch};
 use tokio::task::JoinSet;
 
-// UUID·광고 형식은 docs/PROTOCOL.md
 pub const SERVICE_UUID: Uuid = Uuid::from_u128(0x5e7a0001_3c1b_4f6e_9d2a_7b1c0e5a9f10);
 pub const AUDIO_CHAR_UUID: Uuid = Uuid::from_u128(0x5e7a0002_3c1b_4f6e_9d2a_7b1c0e5a9f10);
 
-/// 폰마다(블루투스 주소) 그 폰이 쓴 바이트를 받는 청취자 쪽 통로
 type Inboxes = Arc<Mutex<HashMap<Address, mpsc::UnboundedSender<Vec<u8>>>>>;
 
-/// drop되면 광고·GATT 등록이 해제되고 모든 전송이 멈춘다.
 pub struct BleServer {
     _adv: AdvertisementHandle,
     _app: ApplicationHandle,
@@ -43,8 +38,6 @@ impl BleServer {
         self.listeners.load(Ordering::Relaxed)
     }
 
-    /// 구독 중인 폰마다 "공유 중지" 제어 패킷을 보내고 기다린다. 이후 drop하면 연결이 정리된다.
-    /// (그냥 drop하면 폰은 연결이 끊긴 줄 알고 다시 찾는다)
     pub async fn stop(&self) {
         listener::stop_all(&self.stop_tx, &self.listeners).await;
     }
@@ -74,7 +67,6 @@ pub async fn start(encoded: EncodedTx, key: Key) -> Result<BleServer, String> {
         .await
         .map_err(|e| format!("BLE 광고 실패: {e}"))?;
 
-    // 폰이 쓴 바이트(확인 답)는 그 폰의 청취자에게 넘긴다
     let inboxes: Inboxes = Arc::default();
     let routes = inboxes.clone();
     let on_write = move |value: Vec<u8>, req: bluer::gatt::local::CharacteristicWriteRequest| {
@@ -92,7 +84,6 @@ pub async fn start(encoded: EncodedTx, key: Key) -> Result<BleServer, String> {
                 primary: true,
                 characteristics: vec![Characteristic {
                     uuid: AUDIO_CHAR_UUID,
-                    // Notify = 소리·제어 패킷, Write = 폰의 확인 답
                     write: Some(CharacteristicWrite {
                         write: true,
                         method: CharacteristicWriteMethod::Fun(Box::new(on_write)),
@@ -117,7 +108,6 @@ pub async fn start(encoded: EncodedTx, key: Key) -> Result<BleServer, String> {
     let count = listeners.clone();
     let (stop_tx, stop_rx) = watch::channel(false);
     let accept_task = tokio::spawn(async move {
-        // 이 태스크가 abort되면 JoinSet이 drop되며 청취자 태스크도 전부 abort됨
         let mut set = JoinSet::new();
         let mut char_control = Box::pin(char_control);
         while let Some(evt) = char_control.next().await {
@@ -143,7 +133,6 @@ pub async fn start(encoded: EncodedTx, key: Key) -> Result<BleServer, String> {
     Ok(BleServer { _adv: adv, _app: app, accept_task, listeners, stop_tx })
 }
 
-// 구독이 끝나면 그 폰의 쓰기 통로도 치운다
 async fn listener_loop(
     writer: CharacteristicWriter,
     key: Key,
@@ -159,7 +148,6 @@ async fn listener_loop(
     inboxes.lock().unwrap().remove(&addr);
 }
 
-/// BlueZ는 구독한 폰마다 통로(writer)를 주고, 거기 쓰면 notify 하나로 나간다
 struct Notifier(CharacteristicWriter);
 
 impl PhoneLink for Notifier {

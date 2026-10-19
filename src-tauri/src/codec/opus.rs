@@ -1,21 +1,17 @@
-// 코덱 1·2: Opus 48kHz 스테레오 (libopus, opus 크레이트). 앱 쪽은 android/.../Codecs.kt 의 OpusStereo.
-//
-// 프레임 하나 = 20ms = 패킷 하나. Ogg 같은 컨테이너 없이 Opus 패킷을 그대로 보낸다.
-
+// docs/CODECS.md: 구현된 코덱
 use super::resample::Resampler;
 use super::Encoder;
 use crate::audio::AudioChunk;
 use ::opus::{Application, Bitrate, Channels};
 
 const RATE: u32 = 48000;
-const FRAME_LEN: usize = RATE as usize / 50; // 20ms, 채널당 샘플 수
-/// 프레임 하나의 최대 바이트. BLE 패킷(MTU 517 → 데이터 508B)에 들어가게
+const FRAME_LEN: usize = RATE as usize / 50;
 const MAX_FRAME_BYTES: usize = 480;
 
 pub struct OpusEncoder {
     resampler: Resampler,
     enc: ::opus::Encoder,
-    pending: Vec<f32>, // 아직 프레임을 못 채운 스테레오 샘플
+    pending: Vec<f32>,
 }
 
 impl OpusEncoder {
@@ -60,7 +56,7 @@ mod tests {
     #[test]
     fn frames_are_20ms_and_fit_packet() {
         let mut e = OpusEncoder::new(128_000);
-        let frames = e.encode(&sine(RATE as usize / 10)); // 100ms
+        let frames = e.encode(&sine(RATE as usize / 10));
         assert_eq!(frames.len(), 5);
         assert!(frames.iter().all(|f| !f.is_empty() && f.len() <= MAX_FRAME_BYTES));
     }
@@ -78,7 +74,6 @@ mod tests {
             energy += out[..n * 2].iter().map(|&s| (s as f64).powi(2)).sum::<f64>();
         }
         assert_eq!(total, 48000);
-        // 진폭 0.5·0.3 사인파 → 무음이 아니어야 함
         assert!(energy / (total * 2) as f64 > 1e6, "{energy}");
     }
 }
