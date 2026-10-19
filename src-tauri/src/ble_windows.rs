@@ -3,7 +3,6 @@
 // 바깥에서 보는 모양(start·listeners·stop)은 ble.rs(Linux)와 같다.
 
 use crate::auth::Key;
-use crate::device_id::{device_id_hex, DeviceId};
 use crate::encoding::EncodedTx;
 use crate::listener::{self, PhoneLink};
 use std::collections::HashMap;
@@ -70,7 +69,7 @@ impl Drop for BleServer {
     }
 }
 
-pub async fn start(encoded: EncodedTx, id: DeviceId, key: Key) -> Result<BleServer, String> {
+pub async fn start(encoded: EncodedTx, key: Key) -> Result<BleServer, String> {
     let created = GattServiceProvider::CreateAsync(SERVICE_UUID)
         .map_err(|e| format!("GATT 서비스 만들기 실패: {e}"))?
         .await
@@ -162,7 +161,7 @@ pub async fn start(encoded: EncodedTx, id: DeviceId, key: Key) -> Result<BleServ
         }
     });
 
-    println!("[ble] 광고 시작: {}", device_id_hex(&id));
+    println!("[ble] 광고 시작");
     Ok(BleServer { provider, characteristic, clients_token, write_token, accept_task, listeners, stop_tx })
 }
 

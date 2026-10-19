@@ -62,7 +62,7 @@ async fn start_sharing(state: State<'_, AppState>) -> Result<(), String> {
     }
     let audio = audio::channel();
     let (encoding, encoded) = encoding::start(&audio, state.codec.subscribe());
-    let ble = ble::start(encoded, state.id, state.key).await?;
+    let ble = ble::start(encoded, state.key).await?;
     let capture = capture::start(audio)?;
     *guard = Some(Sharing { ble, _encoding: encoding, _capture: capture });
     Ok(())

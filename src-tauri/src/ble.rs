@@ -2,7 +2,6 @@
 // 구독한 폰마다 확인·소리 보내기(listener.rs)를 돌리고, 그 폰에 notify로 보내는 방법만 여기서 준다.
 
 use crate::auth::Key;
-use crate::device_id::{device_id_hex, DeviceId};
 use crate::encoding::EncodedTx;
 use crate::listener::{self, PhoneLink};
 use bluer::{
@@ -64,7 +63,7 @@ impl Drop for BleServer {
     }
 }
 
-pub async fn start(encoded: EncodedTx, id: DeviceId, key: Key) -> Result<BleServer, String> {
+pub async fn start(encoded: EncodedTx, key: Key) -> Result<BleServer, String> {
     let session = bluer::Session::new().await.map_err(|e| format!("BlueZ 연결 실패: {e}"))?;
     let adapter = session
         .default_adapter()
@@ -147,7 +146,7 @@ pub async fn start(encoded: EncodedTx, id: DeviceId, key: Key) -> Result<BleServ
         }
     });
 
-    println!("[ble] 광고 시작: {}", device_id_hex(&id));
+    println!("[ble] 광고 시작");
     Ok(BleServer { _adv: adv, _app: app, accept_task, listeners, stop_tx })
 }
 
