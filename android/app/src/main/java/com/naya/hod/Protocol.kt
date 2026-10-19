@@ -27,6 +27,8 @@ object Protocol {
 
     fun hexBytes(hex: String): ByteArray = ByteArray(hex.length / 2) { hex.substring(it * 2, it * 2 + 2).toInt(16).toByte() }
 
+    const val MTU_REQUEST = 517
+
     const val VERSION = 2
     const val HEADER_LEN = 4
 

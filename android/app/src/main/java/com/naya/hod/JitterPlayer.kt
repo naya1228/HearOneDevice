@@ -18,9 +18,9 @@ class JitterPlayer(
 ) {
     // 아래 수치와 queued는 샘플 수 (스테레오면 L·R 각각 하나씩 = 프레임당 2)
     private val perMs = rate * channels / 1000
-    private val prebuffer = perMs * 60  // 60ms
-    private val target = perMs * 80     // 80ms
-    private val max = perMs * 200       // 200ms
+    private val prebuffer = perMs * PREBUFFER_MS
+    private val target = perMs * TARGET_MS
+    private val max = perMs * MAX_MS
 
     private val lock = Object()
     private val queue = ArrayDeque<ShortArray>()
@@ -76,7 +76,7 @@ class JitterPlayer(
             .setPerformanceMode(AudioTrack.PERFORMANCE_MODE_LOW_LATENCY)
             .build()
         // 기기가 주는 최소 버퍼(이 폰은 120ms)는 크다 → 실제로 쓰는 양만 40ms로 줄임 (기기가 더 작게는 안 줄여줌)
-        track.setBufferSizeInFrames(rate * 40 / 1000)
+        track.setBufferSizeInFrames(rate * TRACK_MS / 1000)
         track.play()
         trackMs = track.bufferSizeInFrames * 1000 / rate
 
@@ -87,18 +87,18 @@ class JitterPlayer(
             while (running) {
                 val chunk = synchronized(lock) {
                     when {
-                        !primed && queued < prebuffer -> { lock.wait(20); null }
+                        !primed && queued < prebuffer -> { lock.wait(WAIT_MS); null }
                         queue.isEmpty() -> {
                             // 다 써버림 → 다시 PREBUFFER 만큼 모일 때까지 대기
                             primed = false
                             underruns++
-                            lock.wait(20)
+                            lock.wait(WAIT_MS)
                             null
                         }
                         else -> {
                             primed = true
                             windowMin = minOf(windowMin, queued)
-                            if (System.nanoTime() - windowStart > 1_000_000_000L) {
+                            if (System.nanoTime() - windowStart > TRIM_WINDOW_NS) {
                                 // 스테레오면 L·R 짝이 안 깨지게 채널 수의 배수로
                                 if (windowMin > target) trim((windowMin - target) / channels * channels)
                                 windowMin = Int.MAX_VALUE
@@ -140,7 +140,17 @@ class JitterPlayer(
             queued = 0
             lock.notifyAll()
         }
-        thread?.join(500)
+        thread?.join(STOP_JOIN_MS)
         thread = null
+    }
+
+    private companion object {
+        const val PREBUFFER_MS = 60
+        const val TARGET_MS = 80
+        const val MAX_MS = 200
+        const val TRACK_MS = 40
+        const val TRIM_WINDOW_NS = 1_000_000_000L
+        const val WAIT_MS = 20L
+        const val STOP_JOIN_MS = 500L
     }
 }

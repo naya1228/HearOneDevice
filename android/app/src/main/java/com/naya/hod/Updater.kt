@@ -18,6 +18,9 @@ import kotlin.concurrent.thread
 object Updater {
     private const val LATEST = "https://api.github.com/repos/naya1228/HearOneDevice/releases/latest"
 
+    private const val CONNECT_TIMEOUT_MS = 10_000
+    private const val READ_TIMEOUT_MS = 30_000
+
     class Release(val version: String, val apkUrl: String)
 
     /** 새 버전이 있으면 Release, 없거나 확인 실패(인터넷 없음 등)면 null. 결과는 백그라운드 스레드에서 옴 */
@@ -61,8 +64,8 @@ object Updater {
     }
 
     private fun get(url: String) = (URL(url).openConnection() as HttpURLConnection).run {
-        connectTimeout = 10_000
-        readTimeout = 30_000
+        connectTimeout = CONNECT_TIMEOUT_MS
+        readTimeout = READ_TIMEOUT_MS
         if (responseCode !in 200..299) throw IllegalStateException("HTTP $responseCode")
         inputStream
     }

@@ -33,6 +33,14 @@ object Codecs {
     // 코덱 1·2: Opus 48kHz 스테레오 (PC src-tauri/src/codec/opus.rs). 비트레이트는 PC 쪽 설정이라 디코더는 같다.
     // 안드로이드 내장 디코더(MediaCodec, Android 5.0+)를 쓴다. 패킷 하나 = 20ms 프레임 하나, 컨테이너 없음.
     class OpusStereo(override val id: Int, override val name: String) : Decoder {
+        private companion object {
+            const val FRAME_US = 20_000L
+            const val INPUT_WAIT_US = 10_000L
+            const val FIRST_OUTPUT_WAIT_US = 5_000L
+            const val PRE_SKIP_NS = 0L
+            const val PRE_ROLL_NS = 80_000_000L
+        }
+
         override val sampleRate = 48000
         override val channels = 2
 
@@ -44,23 +52,23 @@ object Codecs {
             val format = MediaFormat.createAudioFormat(MediaFormat.MIMETYPE_AUDIO_OPUS, sampleRate, channels)
             // MediaCodec 문서의 Opus 설정값: csd-0 = OpusHead(RFC 7845), csd-1 = pre-skip ns, csd-2 = seek pre-roll ns
             format.setByteBuffer("csd-0", opusHead())
-            format.setByteBuffer("csd-1", nanos(0))
-            format.setByteBuffer("csd-2", nanos(80_000_000))
+            format.setByteBuffer("csd-1", nanos(PRE_SKIP_NS))
+            format.setByteBuffer("csd-2", nanos(PRE_ROLL_NS))
             codec.configure(format, null, null, 0)
             codec.start()
         }
 
         override fun decode(data: ByteArray, offset: Int): ShortArray {
-            val inIndex = codec.dequeueInputBuffer(10_000)
+            val inIndex = codec.dequeueInputBuffer(INPUT_WAIT_US)
             if (inIndex >= 0) {
                 val len = data.size - offset
                 codec.getInputBuffer(inIndex)!!.apply { clear(); put(data, offset, len) }
                 codec.queueInputBuffer(inIndex, 0, len, ptsUs, 0)
-                ptsUs += 20_000
+                ptsUs += FRAME_US
             }
             // 나온 만큼 꺼낸다. 첫 출력은 조금 기다려 줌 (안 기다리면 출력이 한 패킷씩 밀림)
             var out = ShortArray(0)
-            var wait = 5_000L
+            var wait = FIRST_OUTPUT_WAIT_US
             while (true) {
                 val outIndex = codec.dequeueOutputBuffer(info, wait)
                 wait = 0

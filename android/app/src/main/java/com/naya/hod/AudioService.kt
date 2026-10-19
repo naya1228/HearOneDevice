@@ -48,6 +48,10 @@ class AudioService : Service() {
         private const val COLLECT_MS = 1000L
         // 확인에 이만큼 연속으로 떨어지면 내 PC가 근처에 없거나 열쇠가 바뀐 것으로 보고 멈춤
         private const val MAX_REJECTIONS = 5
+        private const val RETRY_MS = 3000L
+        private const val RESCAN_MS = 1000L
+        private const val STATS_EVERY_MS = 1000L
+        private const val MAX_SEQ_GAP = 1000
 
         @Volatile var isRunning = false; private set
         @Volatile var status = "정지됨"; private set
@@ -166,7 +170,7 @@ class AudioService : Service() {
         val scanner = bluetooth?.bluetoothLeScanner
         if (scanner == null || !bluetooth.isEnabled) {
             setStatus("블루투스가 꺼져 있음. 켜면 자동으로 다시 시도")
-            handler.postDelayed({ scan() }, 3000)
+            handler.postDelayed({ scan() }, RETRY_MS)
             return
         }
         lastSeq = -1
@@ -237,7 +241,7 @@ class AudioService : Service() {
         override fun onScanFailed(errorCode: Int) {
             scanning = false
             setStatus("스캔 실패 (코드 $errorCode). 다시 시도")
-            handler.postDelayed({ scan() }, 3000)
+            handler.postDelayed({ scan() }, RETRY_MS)
         }
     }
 
@@ -249,7 +253,7 @@ class AudioService : Service() {
                 setStatus("연결됨, 설정 중...")
                 g.requestConnectionPriority(BluetoothGatt.CONNECTION_PRIORITY_HIGH)
                 // 한 번에 보낼 수 있는 크기를 최대로 요청 (실제 값은 onMtuChanged)
-                g.requestMtu(517)
+                g.requestMtu(Protocol.MTU_REQUEST)
             } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
                 g.close()
                 if (gatt == g) gatt = null
@@ -262,7 +266,7 @@ class AudioService : Service() {
                     if (addr != null && !passed && !leavingRejected) candidates.unreachable(addr)
                     if (!leavingRejected) setStatus("끊김, 다시 찾는 중...")
                     leavingRejected = false
-                    handler.postDelayed({ scan() }, 1000)
+                    handler.postDelayed({ scan() }, RESCAN_MS)
                 }
             }
         }
@@ -336,7 +340,7 @@ class AudioService : Service() {
         if (open == null) return
         if (lastSeq >= 0) {
             val gap = (packet.seq - lastSeq - 1) and 0xFFFF
-            if (gap in 1..1000) lost += gap
+            if (gap in 1..MAX_SEQ_GAP) lost += gap
         }
         lastSeq = packet.seq
         bytesThisSecond += data.size
@@ -449,7 +453,7 @@ class AudioService : Service() {
             }
             setStats(detail)
             bytesThisSecond = 0
-            handler.postDelayed(this, 1000)
+            handler.postDelayed(this, STATS_EVERY_MS)
         }
     }
 

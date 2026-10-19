@@ -14,6 +14,12 @@ import kotlin.math.sqrt
  * 각 대역의 세기를 -60~0dB → 0~1 로 돌려준다.
  */
 class Spectrum(private val n: Int = 1024, private val bands: Int = 64) {
+    private companion object {
+        const val LOW_HZ = 60.0
+        const val HIGH_HZ = 16000.0
+        const val FLOOR_DB = 60f
+    }
+
     init {
         require(n > 0 && n and (n - 1) == 0) { "n은 2의 거듭제곱" }
     }
@@ -30,8 +36,8 @@ class Spectrum(private val n: Int = 1024, private val bands: Int = 64) {
             im[i] = 0f
         }
         fft()
-        val lo = 60.0
-        val hi = minOf(16000.0, rate / 2.0)
+        val lo = LOW_HZ
+        val hi = minOf(HIGH_HZ, rate / 2.0)
         for (b in 0 until bands) {
             val f0 = lo * (hi / lo).pow(b.toDouble() / bands)
             val f1 = lo * (hi / lo).pow((b + 1.0) / bands)
@@ -42,7 +48,7 @@ class Spectrum(private val n: Int = 1024, private val bands: Int = 64) {
             // 최대 크기 사인파가 1(0dB)이 되도록: Hann 창을 씌우면 크기가 n/4
             val amp = sqrt(peak) / (n / 4f)
             val db = 20 * log10(amp + 1e-9f)
-            out[b] = ((db + 60) / 60).coerceIn(0f, 1f)
+            out[b] = ((db + FLOOR_DB) / FLOOR_DB).coerceIn(0f, 1f)
         }
     }
 

@@ -5,6 +5,10 @@ package com.naya.hod
  * 재생 스레드(JitterPlayer)가 쓰고 화면 스레드(CircleVisualizer)가 읽는다.
  */
 class AudioTap(private val size: Int = 2048) {
+    private companion object {
+        const val SILENCE_NS = 200_000_000L
+    }
+
     private val buf = FloatArray(size)
     private var pos = 0
     @Volatile private var lastWrite = 0L
@@ -28,7 +32,7 @@ class AudioTap(private val size: Int = 2048) {
 
     /** 가장 최근 out.size개(오래된 것부터)를 채운다. 0.2초 넘게 새 소리가 없으면 false */
     fun read(out: FloatArray): Boolean {
-        if (System.nanoTime() - lastWrite > 200_000_000L) return false
+        if (System.nanoTime() - lastWrite > SILENCE_NS) return false
         synchronized(buf) {
             val n = out.size
             for (k in 0 until n) out[k] = buf[(pos - n + k + size) % size]

@@ -19,6 +19,11 @@ class CircleVisualizer(context: Context) : View(context) {
     private companion object {
         const val BARS = 64
         const val FFT_SIZE = 1024
+        const val FALL = 0.88f
+        const val INNER = 0.42f
+        const val MAX_LEN = 0.55f
+        const val BAR_FILL = 0.55
+        const val MIN_LEN_DP = 3
     }
 
     private val spectrum = Spectrum(FFT_SIZE, BARS)
@@ -35,20 +40,20 @@ class CircleVisualizer(context: Context) : View(context) {
         if (!AudioService.tap.read(samples)) target.fill(0f)
         else spectrum.compute(samples, AudioService.tap.sampleRate, target)
         for (i in 0 until BARS) {
-            level[i] = if (target[i] > level[i]) target[i] else level[i] * 0.88f + target[i] * 0.12f
+            level[i] = if (target[i] > level[i]) target[i] else level[i] * FALL + target[i] * (1 - FALL)
         }
 
         val cx = width / 2f
         val cy = height / 2f
         val r = min(width, height) / 2f
-        val inner = r * 0.42f
-        val maxLen = r * 0.55f
-        paint.strokeWidth = (2 * PI * inner / BARS * 0.55).toFloat()
+        val inner = r * INNER
+        val maxLen = r * MAX_LEN
+        paint.strokeWidth = (2 * PI * inner / BARS * BAR_FILL).toFloat()
         for (i in 0 until BARS) {
             val a = -PI / 2 + 2 * PI * i / BARS
             val c = cos(a).toFloat()
             val s = sin(a).toFloat()
-            val len = 3 * density + level[i] * maxLen
+            val len = MIN_LEN_DP * density + level[i] * maxLen
             canvas.drawLine(cx + c * inner, cy + s * inner, cx + c * (inner + len), cy + s * (inner + len), paint)
         }
         postInvalidateOnAnimation()
