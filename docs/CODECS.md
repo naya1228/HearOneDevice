@@ -32,7 +32,7 @@ PC → 폰으로 보내는 소리 형식 목록입니다. 패킷 헤더 두 번�
 
 1. **PC** `src-tauri/src/codec/`
    - 새 파일(예: `pcm.rs`)에 `Encoder` 트레이트를 구현합니다. 리샘플이 필요하면 `resample::Resampler`를 같이 씁니다.
-   - `mod.rs`의 `Codec`에 번호를 추가하고 `ALL`, `name()`, `encoder()`에 연결합니다.
+   - `mod.rs`의 `Codec`에 번호를 추가하고 `ALL`, `name()`, `warning()`, `encoder()`에 연결합니다. `warning()`은 골랐을 때 화면에 띄울 주의 문구(없으면 `None`).
    - `encode()`가 내놓는 조각 하나가 패킷 하나가 됩니다 (`packet.rs`). MTU 여유보다 크면 버려집니다: 최대 492B = 512 − 헤더 4 − 검사값 16 ([PROTOCOL.md](PROTOCOL.md) 3·6절).
 2. **앱** `Codecs.kt`
    - 같은 번호로 `const val`을 추가하고, `Decoder`(`sampleRate`, `decode`)를 구현한 뒤 `decoder()`에 연결합니다.
