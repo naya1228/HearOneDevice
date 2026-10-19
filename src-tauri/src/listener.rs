@@ -10,7 +10,12 @@ use crate::encoding::EncodedTx;
 use std::future::Future;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
+use std::time::Duration;
 use tokio::sync::{broadcast, mpsc, watch};
+
+const STOP_WAIT: Duration = Duration::from_millis(500);
+const STOP_FLUSH: Duration = Duration::from_millis(200);
+const STOP_POLL: Duration = Duration::from_millis(10);
 
 /// 구독한 폰 한 대에 패킷 하나(notify 하나)를 보내는 방법. OS마다 구현
 pub trait PhoneLink: Send {
@@ -35,6 +40,16 @@ pub async fn serve(
         let _counted = Counted::new(count);
         send_audio(&mut link, &mut packetizer, &name, encoded, stop).await;
     }
+}
+
+// docs/PROTOCOL.md: 제어 메시지
+pub async fn stop_all(stop: &watch::Sender<bool>, count: &AtomicUsize) {
+    stop.send_replace(true);
+    let deadline = tokio::time::Instant::now() + STOP_WAIT;
+    while count.load(Ordering::Relaxed) > 0 && tokio::time::Instant::now() < deadline {
+        tokio::time::sleep(STOP_POLL).await;
+    }
+    tokio::time::sleep(STOP_FLUSH).await;
 }
 
 /// 살아 있는 동안 청취자 수에 1을 더한다. OS 파일이 구독이 끊긴 폰의 작업을 중간에 끊어도(abort) 빠진다

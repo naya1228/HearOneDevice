@@ -46,14 +46,7 @@ impl BleServer {
     /// 구독 중인 폰마다 "공유 중지" 제어 패킷을 보내고 기다린다. 이후 drop하면 연결이 정리된다.
     /// (그냥 drop하면 폰은 연결이 끊긴 줄 알고 다시 찾는다)
     pub async fn stop(&self) {
-        self.stop_tx.send_replace(true);
-        // 모든 청취자가 중지 패킷을 쓰고 끝날 때까지 (최대 0.5초)
-        let deadline = tokio::time::Instant::now() + std::time::Duration::from_millis(500);
-        while self.listeners() > 0 && tokio::time::Instant::now() < deadline {
-            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
-        }
-        // 소켓에 쓴 패킷이 실제 전파로 나갈 시간
-        tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+        listener::stop_all(&self.stop_tx, &self.listeners).await;
     }
 }
 
