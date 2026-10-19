@@ -13,6 +13,9 @@ use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::{broadcast, mpsc, watch};
 
+pub const ATT_HEADER_LEN: usize = 3;
+pub const MIN_PACKET: usize = 20;
+pub const MAX_PACKET: usize = 512;
 const STOP_WAIT: Duration = Duration::from_millis(500);
 const STOP_FLUSH: Duration = Duration::from_millis(200);
 const STOP_POLL: Duration = Duration::from_millis(10);
@@ -34,8 +37,7 @@ pub async fn serve(
     stop: watch::Receiver<bool>,
     count: Arc<AtomicUsize>,
 ) {
-    // 속성 최대 길이 512
-    let mut packetizer = Packetizer::new(max_packet.clamp(20, 512));
+    let mut packetizer = Packetizer::new(max_packet.clamp(MIN_PACKET, MAX_PACKET));
     if authenticate(&mut link, &mut packetizer, &name, key, inbox).await {
         let _counted = Counted::new(count);
         send_audio(&mut link, &mut packetizer, &name, encoded, stop).await;

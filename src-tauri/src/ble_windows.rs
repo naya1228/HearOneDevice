@@ -4,7 +4,7 @@
 
 use crate::auth::Key;
 use crate::encoding::EncodedTx;
-use crate::listener::{self, PhoneLink};
+use crate::listener::{self, PhoneLink, MIN_PACKET};
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
@@ -133,15 +133,14 @@ pub async fn start(encoded: EncodedTx, key: Key) -> Result<BleServer, String> {
                 if active.contains_key(&name) {
                     continue;
                 }
-                let max = client.MaxNotificationSize().unwrap_or(20);
+                let max = client.MaxNotificationSize().map_or(MIN_PACKET, usize::from);
                 println!("[ble] 구독 시작: {name} (최대 패킷 {max}B)");
                 let (inbox_tx, inbox_rx) = mpsc::unbounded_channel();
                 inboxes.lock().unwrap().insert(name.clone(), inbox_tx);
                 let task = set.spawn(listener::serve(
                     Listener { ch: ch.clone(), client },
                     name.clone(),
-                    // MaxNotificationSize = MTU − 3 (ATT 헤더)
-                    max as usize,
+                    max,
                     key,
                     inbox_rx,
                     encoded.clone(),

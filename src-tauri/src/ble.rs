@@ -3,7 +3,7 @@
 
 use crate::auth::Key;
 use crate::encoding::EncodedTx;
-use crate::listener::{self, PhoneLink};
+use crate::listener::{self, PhoneLink, ATT_HEADER_LEN};
 use bluer::{
     adv::{Advertisement, AdvertisementHandle},
     gatt::local::{
@@ -154,8 +154,7 @@ async fn listener_loop(
     count: Arc<AtomicUsize>,
 ) {
     let addr = writer.device_address();
-    // ATT 헤더 3바이트 제외
-    let max = writer.mtu().saturating_sub(3);
+    let max = writer.mtu().saturating_sub(ATT_HEADER_LEN);
     listener::serve(Notifier(writer), addr.to_string(), max, key, inbox, encoded, stop, count).await;
     inboxes.lock().unwrap().remove(&addr);
 }
