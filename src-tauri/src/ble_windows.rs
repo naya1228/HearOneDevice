@@ -25,6 +25,8 @@ use windows::Storage::Streams::{DataReader, DataWriter, IBuffer};
 // UUID·광고 형식은 docs/PROTOCOL.md
 const SERVICE_UUID: GUID = GUID::from_u128(0x5e7a0001_3c1b_4f6e_9d2a_7b1c0e5a9f10);
 const AUDIO_CHAR_UUID: GUID = GUID::from_u128(0x5e7a0002_3c1b_4f6e_9d2a_7b1c0e5a9f10);
+const ADVERTISE_WAIT: Duration = Duration::from_secs(2);
+const ADVERTISE_POLL: Duration = Duration::from_millis(20);
 
 /// 폰마다(장치 ID 문자열) 그 폰이 쓴 바이트를 받는 청취자 쪽 통로
 type Inboxes = Arc<Mutex<HashMap<String, mpsc::UnboundedSender<Vec<u8>>>>>;
@@ -186,7 +188,7 @@ async fn advertise(provider: &GattServiceProvider) -> Result<(), String> {
 
     // 광고 시작 결과는 나중에 상태로만 알 수 있어서 잠깐 지켜본다.
     // 시작 직후 잠깐 Aborted로 보였다가 Started로 바뀌기도 해서 끝까지 기다린다
-    let deadline = tokio::time::Instant::now() + Duration::from_secs(2);
+    let deadline = tokio::time::Instant::now() + ADVERTISE_WAIT;
     loop {
         let status = provider.AdvertisementStatus().map_err(|e| e.to_string())?;
         if status == GattServiceProviderAdvertisementStatus::Started {
@@ -199,7 +201,7 @@ async fn advertise(provider: &GattServiceProvider) -> Result<(), String> {
                 status.0
             ));
         }
-        tokio::time::sleep(Duration::from_millis(20)).await;
+        tokio::time::sleep(ADVERTISE_POLL).await;
     }
 }
 

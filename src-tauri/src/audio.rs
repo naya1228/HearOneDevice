@@ -10,9 +10,11 @@ pub struct AudioChunk {
     pub samples: Vec<f32>,
 }
 
+const CHANNEL_CAPACITY: usize = 64;
+
 pub type AudioTx = broadcast::Sender<Arc<AudioChunk>>;
 
 pub fn channel() -> AudioTx {
     // 20ms 조각 기준 약 1초 분량. 느린 소비자는 Lagged로 건너뜀
-    broadcast::channel(64).0
+    broadcast::channel(CHANNEL_CAPACITY).0
 }

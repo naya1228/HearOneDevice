@@ -9,7 +9,7 @@ use std::sync::Arc;
 
 const SAMPLE_RATE: u32 = 48000;
 const CHANNELS: u16 = 2;
-const CHUNK_FRAMES: usize = 960; // 20ms
+const CHUNK_FRAMES: usize = SAMPLE_RATE as usize / 50; // 20ms
 const CHUNK_BYTES: usize = CHUNK_FRAMES * CHANNELS as usize * 4;
 
 /// drop되면 캡처 스레드가 멈춘다.

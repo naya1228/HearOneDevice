@@ -3,6 +3,11 @@
 use hear_one_device_lib::{audio, ble, capture, codec::Codec, encoding, link};
 use tokio::sync::watch;
 
+const ID: [u8; 4] = [0x00, 0xc0, 0xff, 0xee];
+const KEY: [u8; 32] = [0x11; 32];
+const NAME: &str = "send-example";
+const REPORT_EVERY: std::time::Duration = std::time::Duration::from_secs(5);
+
 #[tokio::main]
 async fn main() -> Result<(), String> {
     let codec = match std::env::args().nth(1) {
@@ -17,13 +22,12 @@ async fn main() -> Result<(), String> {
     let (_codec_tx, codec_rx) = watch::channel(codec);
     let (_encoding, encoded) = encoding::start(&tx, codec_rx);
     // 테스트용 고정 번호·열쇠. 아래 링크를 QR로 만들어 폰으로 찍는다
-    let (id, key) = ([0x00, 0xc0, 0xff, 0xee], [0x11; 32]);
-    println!("연결 링크: {}", link::connect_link(&id, &key, "send-example"));
-    let server = ble::start(encoded, key).await?;
+    println!("연결 링크: {}", link::connect_link(&ID, &KEY, NAME));
+    let server = ble::start(encoded, KEY).await?;
     let _capture = capture::start(tx)?;
     println!("송신 중. Ctrl+C로 종료");
 
-    let mut tick = tokio::time::interval(std::time::Duration::from_secs(5));
+    let mut tick = tokio::time::interval(REPORT_EVERY);
     loop {
         tokio::select! {
             _ = tokio::signal::ctrl_c() => break,

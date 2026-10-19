@@ -13,6 +13,8 @@ pub struct Encoded {
 }
 
 /// 인코딩된 데이터가 흐르는 통로 (인코더 → 전송)
+const CHANNEL_CAPACITY: usize = 64;
+
 pub type EncodedTx = broadcast::Sender<Arc<Encoded>>;
 
 /// drop되면 인코딩을 멈춘다.
@@ -27,7 +29,7 @@ impl Drop for Encoding {
 /// 캡처한 소리를 codec 통로가 가리키는 코덱으로 인코딩해 새 통로로 흘린다.
 /// 인코딩은 한 번만 하고, 전송 쪽 청취자들이 이 통로를 나눠 구독한다.
 pub fn start(audio: &AudioTx, codec: watch::Receiver<Codec>) -> (Encoding, EncodedTx) {
-    let (tx, _) = broadcast::channel(64);
+    let (tx, _) = broadcast::channel(CHANNEL_CAPACITY);
     let task = tokio::spawn(encode_loop(audio.subscribe(), codec, tx.clone()));
     (Encoding(task), tx)
 }

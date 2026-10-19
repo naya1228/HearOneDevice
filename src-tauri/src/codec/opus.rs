@@ -60,7 +60,7 @@ mod tests {
     #[test]
     fn frames_are_20ms_and_fit_packet() {
         let mut e = OpusEncoder::new(128_000);
-        let frames = e.encode(&sine(4800)); // 100ms
+        let frames = e.encode(&sine(RATE as usize / 10)); // 100ms
         assert_eq!(frames.len(), 5);
         assert!(frames.iter().all(|f| !f.is_empty() && f.len() <= MAX_FRAME_BYTES));
     }
