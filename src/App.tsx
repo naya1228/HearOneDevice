@@ -8,6 +8,8 @@ import LandscapeLayout from "./layouts/LandscapeLayout";
 import TinyLayout from "./layouts/TinyLayout";
 import { useUpdate } from "./useUpdate";
 
+const STATUS_REFRESH_MS = 1000;
+
 function App() {
   const [status, setStatus] = useState<Status>({ running: false, listeners: 0, link: "", name: "", codec: 0 });
   const [codecs, setCodecs] = useState<CodecInfo[]>([]);
@@ -23,7 +25,7 @@ function App() {
   useEffect(() => {
     const refresh = () => invoke<Status>("sharing_status").then(setStatus);
     refresh();
-    const id = setInterval(refresh, 1000);
+    const id = setInterval(refresh, STATUS_REFRESH_MS);
     return () => clearInterval(id);
   }, []);
 
