@@ -18,10 +18,7 @@ import com.google.mlkit.vision.barcode.common.Barcode
 import com.google.mlkit.vision.codescanner.GmsBarcodeScannerOptions
 import com.google.mlkit.vision.codescanner.GmsBarcodeScanning
 
-/**
- * 시작/정지, QR 스캔, PC 연결 기록 버튼과 상태 표시만 있는 화면. 실제 일은 AudioService가 한다.
- * PC의 QR(docs/PROTOCOL.md 1절)은 앱 안 스캐너로 찍거나, 폰 카메라로 찍어 이 화면을 열 수 있다.
- */
+// docs/FEATURES.md: 폰 화면
 class MainActivity : Activity() {
 
     companion object {
@@ -35,7 +32,6 @@ class MainActivity : Activity() {
     private lateinit var updateButton: Button
     private var update: Updater.Release? = null
 
-    // 권한을 받는 동안 기다리는 연결 요청
     private var pendingId: String? = null
 
     private val permissions: Array<String>
@@ -77,7 +73,6 @@ class MainActivity : Activity() {
             @Suppress("DEPRECATION")
             setOnClickListener { startActivityForResult(Intent(this@MainActivity, HistoryActivity::class.java), REQ_HISTORY) }
         }
-        // 새 버전이 있을 때만 보임 (켤 때 한 번 확인)
         updateButton = Button(this).apply { visibility = View.GONE }
         statusView = TextView(this).apply {
             setTextColor(Color.rgb(0xFD, 0x60, 0x00))
@@ -122,7 +117,6 @@ class MainActivity : Activity() {
         Updater.check(this) { release -> if (release != null) runOnUiThread { showUpdate(release) } }
     }
 
-    // 앱이 이미 열린 상태에서 카메라로 QR을 찍은 경우
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         handleLink(intent)
@@ -134,7 +128,6 @@ class MainActivity : Activity() {
         AudioService.onStats = { s -> runOnUiThread { renderStats(s) } }
         render(AudioService.status)
         renderStats(AudioService.stats)
-        // 설치 확인 화면에서 취소하고 돌아온 경우 버튼을 다시 누를 수 있게
         update?.let { showUpdate(it) }
     }
 
@@ -161,7 +154,6 @@ class MainActivity : Activity() {
         }
     }
 
-    // 상세 숫자는 개발 모드일 때만
     private fun renderStats(stats: String?) {
         val show = stats != null && DevMode.isOn(this)
         statsView.text = if (show) stats else ""
@@ -170,7 +162,6 @@ class MainActivity : Activity() {
 
     private fun render(status: String) {
         statusView.text = status
-        // 기록이 없으면 QR 스캔 버튼만 (QR로 먼저 연결해야 기록이 생김. 아무 PC나 찾지 않는다)
         val last = SavedPcs.last(this)
         listenButton.visibility = if (AudioService.isRunning || last != null) View.VISIBLE else View.GONE
         historyButton.visibility = if (last != null) View.VISIBLE else View.GONE
@@ -179,11 +170,11 @@ class MainActivity : Activity() {
 
     private fun handleLink(intent: Intent?) {
         val link = Protocol.parseLink(intent?.dataString) ?: return
-        intent?.data = null // 화면 회전 등으로 다시 처리되지 않게
+        intent?.data = null
         connectLink(link)
     }
 
-    // QR로 받은 PC를 기록에 넣고 연결. 열쇠가 없는 QR은 거절 (docs/PROTOCOL.md 1절)
+    // docs/PROTOCOL.md: 찾기
     private fun connectLink(link: Protocol.Link) {
         if (link.key == null) {
             render("PC 앱이 옛 버전이에요. PC 앱을 업데이트해 주세요")
@@ -213,7 +204,6 @@ class MainActivity : Activity() {
         }
     }
 
-    // PC 연결 기록에서 고른 PC로 연결
     @Deprecated("Activity 기본 API")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         @Suppress("DEPRECATION")

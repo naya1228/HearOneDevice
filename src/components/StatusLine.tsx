@@ -1,6 +1,6 @@
 type Props = { running: boolean; listeners: number };
 
-// 점 색으로 상태 구분: 회색 꺼짐 / 주황 깜빡임 기다리는 중 / 초록 연결됨
+// docs/FEATURES.md: PC 화면
 function StatusLine({ running, listeners }: Props) {
   const [text, color, dot] = !running
     ? ["공유 꺼짐", "text-gray-400", "bg-gray-500"]

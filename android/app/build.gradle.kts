@@ -13,7 +13,7 @@ android {
         minSdk = 26
         targetSdk = 37
         // 버전 번호는 versionName 한 곳만 바꾼다. versionCode는 거기서 계산 (0.4.0 → 400): 업데이트 설치는 versionCode가 커야 됨
-        versionName = "0.4.1"
+        versionName = "0.4.2"
         versionCode = versionName!!.split(".").fold(0) { acc, n -> acc * 100 + n.toInt() }
     }
 

@@ -1,6 +1,4 @@
-// 확인용 열쇠: 처음 한 번 무작위로 만들어 설정 폴더에 저장 → 앱을 다시 켜도 QR이 그대로
-
-/// 열쇠 32바이트. QR에는 16진수 64자리로 들어간다.
+// docs/PROTOCOL.md: 찾기
 pub type Key = [u8; 32];
 
 pub fn key_hex(key: &Key) -> String {

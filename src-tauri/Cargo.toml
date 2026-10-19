@@ -1,6 +1,6 @@
 [package]
 name = "hear-one-device"
-version = "0.4.1"
+version = "0.4.2"
 description = "PC 소리를 블루투스(BLE)로 안드로이드 폰에 보내는 앱"
 authors = ["naya1228"]
 edition = "2021"

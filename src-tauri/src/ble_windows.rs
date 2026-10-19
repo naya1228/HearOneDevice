@@ -1,11 +1,7 @@
-// BLE 송신 (Windows/WinRT). PC가 광고(peripheral)하고 폰 앱이 찾아와 구독(central)한다.
-// 구독한 폰마다 확인·소리 보내기(listener.rs)를 돌리고, 그 폰에 notify로 보내는 방법만 여기서 준다.
-// 바깥에서 보는 모양(start·listeners·stop)은 ble.rs(Linux)와 같다.
-
+// docs/PROTOCOL.md: 찾기, 연결 (Windows)
 use crate::auth::Key;
-use crate::device_id::{device_id_hex, DeviceId};
 use crate::encoding::EncodedTx;
-use crate::listener::{self, PhoneLink};
+use crate::listener::{self, PhoneLink, MIN_PACKET};
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
@@ -23,14 +19,13 @@ use windows::Devices::Bluetooth::BluetoothError;
 use windows::Foundation::TypedEventHandler;
 use windows::Storage::Streams::{DataReader, DataWriter, IBuffer};
 
-// UUID·광고 형식은 docs/PROTOCOL.md
 const SERVICE_UUID: GUID = GUID::from_u128(0x5e7a0001_3c1b_4f6e_9d2a_7b1c0e5a9f10);
 const AUDIO_CHAR_UUID: GUID = GUID::from_u128(0x5e7a0002_3c1b_4f6e_9d2a_7b1c0e5a9f10);
+const ADVERTISE_WAIT: Duration = Duration::from_secs(2);
+const ADVERTISE_POLL: Duration = Duration::from_millis(20);
 
-/// 폰마다(장치 ID 문자열) 그 폰이 쓴 바이트를 받는 청취자 쪽 통로
 type Inboxes = Arc<Mutex<HashMap<String, mpsc::UnboundedSender<Vec<u8>>>>>;
 
-/// drop되면 광고·GATT 등록이 해제되고 모든 전송이 멈춘다.
 pub struct BleServer {
     provider: GattServiceProvider,
     characteristic: GattLocalCharacteristic,
@@ -42,22 +37,12 @@ pub struct BleServer {
 }
 
 impl BleServer {
-    /// 확인을 통과해 소리를 받는 폰 수
     pub fn listeners(&self) -> usize {
         self.listeners.load(Ordering::Relaxed)
     }
 
-    /// 구독 중인 폰마다 "공유 중지" 제어 패킷을 보내고 기다린다. 이후 drop하면 연결이 정리된다.
-    /// (그냥 drop하면 폰은 연결이 끊긴 줄 알고 다시 찾는다)
     pub async fn stop(&self) {
-        self.stop_tx.send_replace(true);
-        // 모든 청취자가 중지 패킷을 보내고 끝날 때까지 (최대 0.5초)
-        let deadline = tokio::time::Instant::now() + Duration::from_millis(500);
-        while self.listeners() > 0 && tokio::time::Instant::now() < deadline {
-            tokio::time::sleep(Duration::from_millis(10)).await;
-        }
-        // 보낸 패킷이 실제 전파로 나갈 시간
-        tokio::time::sleep(Duration::from_millis(200)).await;
+        listener::stop_all(&self.stop_tx, &self.listeners).await;
     }
 }
 
@@ -70,7 +55,7 @@ impl Drop for BleServer {
     }
 }
 
-pub async fn start(encoded: EncodedTx, id: DeviceId, key: Key) -> Result<BleServer, String> {
+pub async fn start(encoded: EncodedTx, key: Key) -> Result<BleServer, String> {
     let created = GattServiceProvider::CreateAsync(SERVICE_UUID)
         .map_err(|e| format!("GATT 서비스 만들기 실패: {e}"))?
         .await
@@ -78,7 +63,6 @@ pub async fn start(encoded: EncodedTx, id: DeviceId, key: Key) -> Result<BleServ
     check(created.Error(), "GATT 서비스 만들기 실패")?;
     let provider = created.ServiceProvider().map_err(|e| e.to_string())?;
 
-    // Notify = 소리·제어 패킷, Write = 폰의 확인 답
     let params = GattLocalCharacteristicParameters::new().map_err(|e| e.to_string())?;
     params
         .SetCharacteristicProperties(GattCharacteristicProperties::Notify | GattCharacteristicProperties::Write)
@@ -92,7 +76,6 @@ pub async fn start(encoded: EncodedTx, id: DeviceId, key: Key) -> Result<BleServ
     check(made.Error(), "오디오 특성 만들기 실패")?;
     let characteristic = made.Characteristic().map_err(|e| e.to_string())?;
 
-    // 구독자 목록이 바뀌면 (WinRT 스레드에서) 깨워서 아래 accept 태스크가 목록을 다시 본다
     let changed = Arc::new(Notify::new());
     let wake = changed.clone();
     let clients_token = characteristic
@@ -102,7 +85,6 @@ pub async fn start(encoded: EncodedTx, id: DeviceId, key: Key) -> Result<BleServ
         }))
         .map_err(|e| e.to_string())?;
 
-    // 폰이 쓴 바이트는 그 폰의 청취자에게 넘긴다
     let inboxes: Inboxes = Arc::default();
     let routes = inboxes.clone();
     let write_token = characteristic
@@ -122,13 +104,11 @@ pub async fn start(encoded: EncodedTx, id: DeviceId, key: Key) -> Result<BleServ
     let (stop_tx, stop_rx) = watch::channel(false);
     let ch = characteristic.clone();
     let accept_task = tokio::spawn(async move {
-        // 이 태스크가 abort되면 JoinSet이 drop되며 청취자 태스크도 전부 abort됨
         let mut set = JoinSet::new();
         let mut active: HashMap<String, AbortHandle> = HashMap::new();
         loop {
             while set.try_join_next().is_some() {}
             let now = subscribed_clients(&ch);
-            // 구독을 끊었거나 전송이 끝난 폰은 정리
             active.retain(|name, task| {
                 let keep = now.contains_key(name) && !task.is_finished();
                 if !keep {
@@ -141,15 +121,14 @@ pub async fn start(encoded: EncodedTx, id: DeviceId, key: Key) -> Result<BleServ
                 if active.contains_key(&name) {
                     continue;
                 }
-                let max = client.MaxNotificationSize().unwrap_or(20);
+                let max = client.MaxNotificationSize().map_or(MIN_PACKET, usize::from);
                 println!("[ble] 구독 시작: {name} (최대 패킷 {max}B)");
                 let (inbox_tx, inbox_rx) = mpsc::unbounded_channel();
                 inboxes.lock().unwrap().insert(name.clone(), inbox_tx);
                 let task = set.spawn(listener::serve(
                     Listener { ch: ch.clone(), client },
                     name.clone(),
-                    // MaxNotificationSize = MTU − 3 (ATT 헤더)
-                    max as usize,
+                    max,
                     key,
                     inbox_rx,
                     encoded.clone(),
@@ -162,11 +141,10 @@ pub async fn start(encoded: EncodedTx, id: DeviceId, key: Key) -> Result<BleServ
         }
     });
 
-    println!("[ble] 광고 시작: {}", device_id_hex(&id));
+    println!("[ble] 광고 시작");
     Ok(BleServer { provider, characteristic, clients_token, write_token, accept_task, listeners, stop_tx })
 }
 
-/// 쓰기 요청 하나 처리 (WinRT 스레드). 응답하고, 바이트를 그 폰의 청취자에게 넘긴다
 fn on_write(args: &GattWriteRequestedEventArgs, routes: &Inboxes) -> windows::core::Result<()> {
     let deferral = args.GetDeferral()?;
     let result = (|| {
@@ -181,21 +159,18 @@ fn on_write(args: &GattWriteRequestedEventArgs, routes: &Inboxes) -> windows::co
         }
         Ok(())
     })();
-    // 중간에 실패해도 끝났다고 알려야 Windows가 이 요청을 붙잡고 있지 않는다
     deferral.Complete()?;
     result
 }
 
-/// 연결 가능한 광고. 내용(서비스 UUID)은 Windows가 채우고, 주소는 이 PC의 진짜 주소로 나간다
+// docs/PROTOCOL.md: 찾기
 async fn advertise(provider: &GattServiceProvider) -> Result<(), String> {
     let adv = GattServiceProviderAdvertisingParameters::new().map_err(|e| e.to_string())?;
     adv.SetIsConnectable(true).map_err(|e| e.to_string())?;
     adv.SetIsDiscoverable(true).map_err(|e| e.to_string())?;
     provider.StartAdvertisingWithParameters(&adv).map_err(|e| format!("BLE 광고 실패: {e}"))?;
 
-    // 광고 시작 결과는 나중에 상태로만 알 수 있어서 잠깐 지켜본다.
-    // 시작 직후 잠깐 Aborted로 보였다가 Started로 바뀌기도 해서 끝까지 기다린다
-    let deadline = tokio::time::Instant::now() + Duration::from_secs(2);
+    let deadline = tokio::time::Instant::now() + ADVERTISE_WAIT;
     loop {
         let status = provider.AdvertisementStatus().map_err(|e| e.to_string())?;
         if status == GattServiceProviderAdvertisementStatus::Started {
@@ -208,11 +183,10 @@ async fn advertise(provider: &GattServiceProvider) -> Result<(), String> {
                 status.0
             ));
         }
-        tokio::time::sleep(Duration::from_millis(20)).await;
+        tokio::time::sleep(ADVERTISE_POLL).await;
     }
 }
 
-/// 지금 구독 중인 폰들. 열쇠는 폰마다 다른 장치 ID 문자열
 fn subscribed_clients(ch: &GattLocalCharacteristic) -> HashMap<String, GattSubscribedClient> {
     let Ok(clients) = ch.SubscribedClients() else { return HashMap::new() };
     clients
@@ -224,7 +198,6 @@ fn subscribed_clients(ch: &GattLocalCharacteristic) -> HashMap<String, GattSubsc
         .collect()
 }
 
-/// 구독한 폰 하나에게 보내는 통로
 struct Listener {
     ch: GattLocalCharacteristic,
     client: GattSubscribedClient,
@@ -232,7 +205,6 @@ struct Listener {
 
 impl PhoneLink for Listener {
     async fn send(&mut self, packet: &[u8]) -> Result<(), String> {
-        // IBuffer는 Send가 아니라서 await 전에 버린다
         let op = buffer(packet)
             .and_then(|buf| self.ch.NotifyValueForSubscribedClientAsync(&buf, &self.client))
             .map_err(|e| e.to_string())?;

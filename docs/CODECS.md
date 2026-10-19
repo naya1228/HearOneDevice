@@ -12,7 +12,7 @@ PC → 폰으로 보내는 소리 형식 목록입니다. 패킷 헤더 두 번�
 - 두 코덱 모두 PC `src-tauri/src/codec/opus.rs`, 앱 `Codecs.kt` `OpusStereo`(MediaCodec). 20ms 프레임 = 패킷 하나, 최대 480B.
 - 비트레이트는 PC 인코더 설정일 뿐이라 앱 디코더는 같습니다.
 
-**0번은 코덱이 아니라 제어 메시지**입니다 ([PROTOCOL.md](PROTOCOL.md) 4절).
+**0번은 코덱이 아니라 제어 메시지**입니다 ([PROTOCOL.md](PROTOCOL.md) "제어 메시지").
 
 앱은 헤더 번호로 디코더를 고르므로, 번호의 뜻을 바꾸면 **PC와 앱을 같이 업데이트**합니다.
 
@@ -24,7 +24,7 @@ PC → 폰으로 보내는 소리 형식 목록입니다. 패킷 헤더 두 번�
 폰 앱은 패킷 헤더의 코덱 번호를 보고 맞는 디코더로 알아서 바꿉니다 (다시 빌드할 필요 없음).
 
 - UI 없이 테스트: `cargo run --example send -- 1` (마지막 숫자가 코덱 번호, 빼면 기본 코덱)
-- 앱 화면에 `재생 중 · 코덱 2 Opus 128kbps (고음질) · ...`처럼 지금 받는 코덱이 표시됩니다.
+- 앱 개발 모드(제목 7번 탭)에서 `코덱 2 Opus 128kbps (고음질) · MTU ...`처럼 지금 받는 코덱이 표시됩니다.
 - 앱이 모르는 번호가 오면 `PC가 보낸 코덱 N번을 이 앱이 모름. 앱 업데이트 필요`가 뜨고 소리는 나지 않습니다.
 - 처음 켰을 때 코덱은 `codec/mod.rs`의 `Codec::DEFAULT`.
 
@@ -32,8 +32,8 @@ PC → 폰으로 보내는 소리 형식 목록입니다. 패킷 헤더 두 번�
 
 1. **PC** `src-tauri/src/codec/`
    - 새 파일(예: `pcm.rs`)에 `Encoder` 트레이트를 구현합니다. 리샘플이 필요하면 `resample::Resampler`를 같이 씁니다.
-   - `mod.rs`의 `Codec`에 번호를 추가하고 `ALL`, `name()`, `encoder()`에 연결합니다.
-   - `encode()`가 내놓는 조각 하나가 패킷 하나가 됩니다 (`packet.rs`). MTU 여유(최대 508B)보다 크면 버려집니다.
+   - `mod.rs`의 `Codec`에 번호를 추가하고 `ALL`, `name()`, `warning()`, `encoder()`에 연결합니다. `warning()`은 골랐을 때 화면에 띄울 주의 문구(없으면 `None`).
+   - `encode()`가 내놓는 조각 하나가 패킷 하나가 됩니다 (`packet.rs`). MTU 여유보다 크면 버려집니다: 최대 492B = 512 − 헤더 4 − 검사값 16 ([PROTOCOL.md](PROTOCOL.md) "패킷"·"잠그기").
 2. **앱** `Codecs.kt`
    - 같은 번호로 `const val`을 추가하고, `Decoder`(`sampleRate`, `decode`)를 구현한 뒤 `decoder()`에 연결합니다.
 3. **이 표**에 한 줄 추가합니다.

@@ -1,4 +1,4 @@
-// 기본 출력 장치의 monitor(스피커로 가는 소리의 복사본)를 PulseAudio로 캡처
+// docs/FEATURES.md: 소리 캡처
 use crate::audio::{AudioChunk, AudioTx};
 use libpulse_binding::def::BufferAttr;
 use libpulse_binding::sample::{Format, Spec};
@@ -9,10 +9,9 @@ use std::sync::Arc;
 
 const SAMPLE_RATE: u32 = 48000;
 const CHANNELS: u16 = 2;
-const CHUNK_FRAMES: usize = 960; // 20ms
+const CHUNK_FRAMES: usize = SAMPLE_RATE as usize / 50;
 const CHUNK_BYTES: usize = CHUNK_FRAMES * CHANNELS as usize * 4;
 
-/// drop되면 캡처 스레드가 멈춘다.
 pub struct Capture {
     running: Arc<AtomicBool>,
 }
@@ -66,7 +65,6 @@ pub fn start(tx: AudioTx) -> Result<Capture, String> {
                 .chunks_exact(4)
                 .map(|b| f32::from_ne_bytes([b[0], b[1], b[2], b[3]]))
                 .collect();
-            // 받는 쪽이 없으면 버려짐
             let _ = tx.send(Arc::new(AudioChunk {
                 sample_rate: SAMPLE_RATE,
                 channels: CHANNELS,

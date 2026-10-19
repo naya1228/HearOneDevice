@@ -4,6 +4,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
 
+// docs/PROTOCOL.md: 찾기
 class CandidatesTest {
     @Test
     fun picksStrongestThenSkipsRejected() {
@@ -14,7 +15,7 @@ class CandidatesTest {
         assertEquals("B", c.pick())
         c.reject("B")
         assertEquals("A", c.pick())
-        c.offer("B", -40) // 떨어진 주소는 다시 와도 무시
+        c.offer("B", -40)
         assertEquals("A", c.pick())
         assertEquals(1, c.rejections)
     }
@@ -26,7 +27,7 @@ class CandidatesTest {
         c.accept("A")
         c.newRound()
         c.offer("B", -40)
-        assertEquals("B", c.pick()) // 이번에 안 보이면 다른 후보
+        assertEquals("B", c.pick())
         c.offer("A", -90)
         assertEquals("A", c.pick())
         assertEquals(0, c.rejections)

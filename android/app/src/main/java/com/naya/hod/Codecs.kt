@@ -6,7 +6,7 @@ import android.util.Log
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 
-// 코덱 번호 목록. PC(src-tauri/src/codec/mod.rs 의 Codec)와 번호가 같아야 함. 표는 docs/CODECS.md
+// docs/CODECS.md
 object Codecs {
     const val OPUS_64K_STEREO = 1
     const val OPUS_128K_STEREO = 2
@@ -15,24 +15,26 @@ object Codecs {
         val id: Int
         val name: String
         val sampleRate: Int
-        /** 1 = 모노, 2 = 스테레오 */
         val channels: Int
-        /** 코덱 데이터(헤더 뗀 것) → 16bit PCM (스테레오면 L R L R ...) */
         fun decode(data: ByteArray, offset: Int): ShortArray
-        /** 다 쓰면 호출 (디코더가 시스템 자원을 잡고 있는 경우) */
         fun close() {}
     }
 
-    /** 패킷 헤더의 코덱 번호 → 디코더. 이 앱이 모르는 번호면 null (앱 업데이트 필요) */
     fun decoder(id: Int): Decoder? = when (id) {
         OPUS_64K_STEREO -> OpusStereo(OPUS_64K_STEREO, "Opus 64kbps (기본)")
         OPUS_128K_STEREO -> OpusStereo(OPUS_128K_STEREO, "Opus 128kbps (고음질)")
         else -> null
     }
 
-    // 코덱 1·2: Opus 48kHz 스테레오 (PC src-tauri/src/codec/opus.rs). 비트레이트는 PC 쪽 설정이라 디코더는 같다.
-    // 안드로이드 내장 디코더(MediaCodec, Android 5.0+)를 쓴다. 패킷 하나 = 20ms 프레임 하나, 컨테이너 없음.
     class OpusStereo(override val id: Int, override val name: String) : Decoder {
+        private companion object {
+            const val FRAME_US = 20_000L
+            const val INPUT_WAIT_US = 10_000L
+            const val FIRST_OUTPUT_WAIT_US = 5_000L
+            const val PRE_SKIP_NS = 0L
+            const val PRE_ROLL_NS = 80_000_000L
+        }
+
         override val sampleRate = 48000
         override val channels = 2
 
@@ -42,25 +44,23 @@ object Codecs {
 
         init {
             val format = MediaFormat.createAudioFormat(MediaFormat.MIMETYPE_AUDIO_OPUS, sampleRate, channels)
-            // MediaCodec 문서의 Opus 설정값: csd-0 = OpusHead(RFC 7845), csd-1 = pre-skip ns, csd-2 = seek pre-roll ns
             format.setByteBuffer("csd-0", opusHead())
-            format.setByteBuffer("csd-1", nanos(0))
-            format.setByteBuffer("csd-2", nanos(80_000_000))
+            format.setByteBuffer("csd-1", nanos(PRE_SKIP_NS))
+            format.setByteBuffer("csd-2", nanos(PRE_ROLL_NS))
             codec.configure(format, null, null, 0)
             codec.start()
         }
 
         override fun decode(data: ByteArray, offset: Int): ShortArray {
-            val inIndex = codec.dequeueInputBuffer(10_000)
+            val inIndex = codec.dequeueInputBuffer(INPUT_WAIT_US)
             if (inIndex >= 0) {
                 val len = data.size - offset
                 codec.getInputBuffer(inIndex)!!.apply { clear(); put(data, offset, len) }
                 codec.queueInputBuffer(inIndex, 0, len, ptsUs, 0)
-                ptsUs += 20_000
+                ptsUs += FRAME_US
             }
-            // 나온 만큼 꺼낸다. 첫 출력은 조금 기다려 줌 (안 기다리면 출력이 한 패킷씩 밀림)
             var out = ShortArray(0)
-            var wait = 5_000L
+            var wait = FIRST_OUTPUT_WAIT_US
             while (true) {
                 val outIndex = codec.dequeueOutputBuffer(info, wait)
                 wait = 0
@@ -79,7 +79,7 @@ object Codecs {
                         val ch = f.getInteger(MediaFormat.KEY_CHANNEL_COUNT)
                         if (rate != sampleRate || ch != channels) Log.w("HOD", "Opus 출력 형식이 예상과 다름: ${rate}Hz ${ch}ch")
                     }
-                    else -> break // 더 나올 게 없음
+                    else -> break
                 }
             }
             return out
@@ -90,7 +90,6 @@ object Codecs {
             codec.release()
         }
 
-        // RFC 7845 5.1: "OpusHead", 버전 1, 채널 수, pre-skip u16, 원래 샘플레이트 u32, 게인 i16, 매핑 0 = 19바이트
         private fun opusHead(): ByteBuffer = ByteBuffer.allocate(19).order(ByteOrder.LITTLE_ENDIAN).apply {
             put("OpusHead".toByteArray(Charsets.US_ASCII))
             put(1)

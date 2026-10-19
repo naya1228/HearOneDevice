@@ -1,9 +1,8 @@
 import QRCode from "react-qr-code";
 
-// size: 크기 클래스 (화면마다 다름)
 type Props = { link: string | null; size?: string };
 
-// QR 자리. 공유가 꺼져 있어도 자리를 남겨 켜고 끌 때 화면이 움직이지 않게 함
+// docs/FEATURES.md: PC 화면
 function QrBox({ link, size = "size-36" }: Props) {
   if (!link) {
     return (

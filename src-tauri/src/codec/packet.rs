@@ -1,38 +1,31 @@
-// BLE 패킷 헤더 붙이기 (+ 확인 통과 뒤엔 잠그기). 형식·제어 메시지는 docs/PROTOCOL.md
-
+// docs/PROTOCOL.md: 패킷, 제어 메시지, 잠그기
 use super::Codec;
 use crate::auth::{Sealer, TAG_LEN};
 
 pub const PROTOCOL_VERSION: u8 = 2;
 pub const HEADER_LEN: usize = 4;
 
-/// 제어 메시지 (docs/PROTOCOL.md 4절)
 pub const CONTROL: u8 = 0;
 pub const CONTROL_STOP: u8 = 1;
 pub const CONTROL_CHALLENGE: u8 = 2;
 pub const CONTROL_AUTH_OK: u8 = 3;
 pub const CONTROL_AUTH_FAIL: u8 = 4;
 
-/// 청취자별로 순번을 매겨 패킷을 만든다.
 pub struct Packetizer {
-    /// 긴 순번 (docs/PROTOCOL.md 6절). 헤더엔 아래 16비트만 실림
     seq: u64,
     max_payload: usize,
     sealer: Option<Sealer>,
 }
 
 impl Packetizer {
-    /// max_packet: 한 번에 보낼 수 있는 최대 바이트 (헤더 포함)
     pub fn new(max_packet: usize) -> Self {
         Self { seq: 0, max_payload: max_packet.saturating_sub(HEADER_LEN).max(1), sealer: None }
     }
 
-    /// 이 뒤로 만드는 패킷은 전부 잠근다 (확인 통과 뒤). 되돌리지 않음
     pub fn seal_from_now(&mut self, sealer: Sealer) {
         self.sealer = Some(sealer);
     }
 
-    /// 프레임 하나 = 패킷 하나. MTU보다 크면 못 보내므로 버린다 (None).
     pub fn packet_for(&mut self, codec: Codec, frame: &[u8]) -> Option<Vec<u8>> {
         let room = self.max_payload.saturating_sub(if self.sealer.is_some() { TAG_LEN } else { 0 });
         if frame.len() > room {
@@ -42,12 +35,10 @@ impl Packetizer {
         Some(self.packet(codec.id(), frame))
     }
 
-    /// 제어 메시지 패킷 (cmd = CONTROL_STOP 등)
     pub fn control(&mut self, cmd: u8) -> Vec<u8> {
         self.control_with(cmd, &[])
     }
 
-    /// 뒤에 데이터가 붙는 제어 메시지 (CONTROL_CHALLENGE 등)
     pub fn control_with(&mut self, cmd: u8, data: &[u8]) -> Vec<u8> {
         let mut part = Vec::with_capacity(1 + data.len());
         part.push(cmd);
@@ -67,7 +58,6 @@ impl Packetizer {
             }
             None => p.extend_from_slice(part),
         }
-        // 같은 번호를 다시 쓰지 않도록 늘리기만 함 (u64라 사실상 끝나지 않음)
         self.seq += 1;
         p
     }
@@ -114,7 +104,7 @@ mod tests {
         p
     }
 
-    // 긴 순번 70000 = 헤더 순번 0x1170 (65535 넘어 한 바퀴 돈 뒤). 값은 auth/seal.rs 테스트와 같음
+    // docs/PROTOCOL.md: 시험 값
     #[test]
     fn sealed_packet_keeps_header_and_uses_long_seq() {
         let mut p = sealed_packetizer(100);

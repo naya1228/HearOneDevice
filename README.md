@@ -77,12 +77,14 @@ cd android
 ./gradlew assembleDebug
 ```
 
-Code layout and rules are in [CLAUDE.md](CLAUDE.md). One file does one thing; capture, codec, and transport only pass bytes/samples to each other.
+Code layout and rules are in [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md).
 
 ### Docs (Korean)
 
 - [docs/PROTOCOL.md](docs/PROTOCOL.md) — PC ↔ phone protocol (UUIDs, advertising, packets, key check, encryption)
 - [docs/CODECS.md](docs/CODECS.md) — codec table (Opus 64k default, 128k high quality)
+- [docs/FEATURES.md](docs/FEATURES.md) — what the PC and phone apps do, with their values
+- [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) — code layout and rules
 
 ### License
 
@@ -161,12 +163,14 @@ cd android
 ./gradlew assembleDebug
 ```
 
-코드 구조와 규칙은 [CLAUDE.md](CLAUDE.md)에 있습니다. 한 파일은 한 가지 기능만 하고, 캡처·코덱·전송은 바이트/샘플만 주고받습니다.
+코드 구조와 규칙은 [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md)에 있습니다.
 
 ### 문서
 
 - [docs/PROTOCOL.md](docs/PROTOCOL.md) — PC ↔ 폰 약속 (UUID, 광고, 패킷, 연결 확인, 잠그기)
 - [docs/CODECS.md](docs/CODECS.md) — 코덱 번호 표 (Opus 64k 기본, 128k 고음질)
+- [docs/FEATURES.md](docs/FEATURES.md) — PC·폰 앱의 기능과 그 값
+- [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) — 코드 구조와 규칙
 
 ### 라이선스
 

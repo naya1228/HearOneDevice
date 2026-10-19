@@ -10,17 +10,15 @@ import java.net.HttpURLConnection
 import java.net.URL
 import kotlin.concurrent.thread
 
-/**
- * GitHub 릴리스에서 새 버전 APK를 찾아 받고, 시스템 설치 화면을 띄운다.
- * 설치 확인은 안드로이드가 사용자에게 묻는다 (사이드로드 앱은 조용히 설치할 수 없음).
- * 결과(확인 화면 띄우기·실패)는 UpdateReceiver가 받는다.
- */
+// docs/FEATURES.md: 업데이트
 object Updater {
     private const val LATEST = "https://api.github.com/repos/naya1228/HearOneDevice/releases/latest"
 
+    private const val CONNECT_TIMEOUT_MS = 10_000
+    private const val READ_TIMEOUT_MS = 30_000
+
     class Release(val version: String, val apkUrl: String)
 
-    /** 새 버전이 있으면 Release, 없거나 확인 실패(인터넷 없음 등)면 null. 결과는 백그라운드 스레드에서 옴 */
     fun check(ctx: Context, onResult: (Release?) -> Unit) {
         val current = ctx.packageManager.getPackageInfo(ctx.packageName, 0).versionName ?: return onResult(null)
         thread {
@@ -36,7 +34,6 @@ object Updater {
         }
     }
 
-    /** APK를 받아 설치 세션에 넣고 넘긴다. 실패하면 onError (백그라운드 스레드) */
     fun install(ctx: Context, release: Release, onError: (String) -> Unit) {
         val app = ctx.applicationContext
         thread {
@@ -61,13 +58,12 @@ object Updater {
     }
 
     private fun get(url: String) = (URL(url).openConnection() as HttpURLConnection).run {
-        connectTimeout = 10_000
-        readTimeout = 30_000
+        connectTimeout = CONNECT_TIMEOUT_MS
+        readTimeout = READ_TIMEOUT_MS
         if (responseCode !in 200..299) throw IllegalStateException("HTTP $responseCode")
         inputStream
     }
 
-    /** "0.10.0" > "0.9.1" 처럼 점으로 나눈 숫자끼리 비교 */
     fun newer(a: String, b: String): Boolean {
         val x = a.split(".").map { it.toIntOrNull() ?: 0 }
         val y = b.split(".").map { it.toIntOrNull() ?: 0 }

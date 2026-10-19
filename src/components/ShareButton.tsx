@@ -2,7 +2,7 @@ import Button from "./Button";
 
 type Props = { running: boolean; busy: boolean; onClick: () => void };
 
-// 시작은 주황, 중지는 회색
+// docs/FEATURES.md: PC 화면
 function ShareButton({ running, busy, onClick }: Props) {
   return (
     <Button type="button" variant={running ? "secondary" : "primary"} disabled={busy} onClick={onClick}>

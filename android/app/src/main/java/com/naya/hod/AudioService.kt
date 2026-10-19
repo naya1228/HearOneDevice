@@ -26,42 +26,36 @@ import android.os.Looper
 import android.os.ParcelUuid
 import android.os.PowerManager
 import android.util.Log
+import androidx.annotation.MainThread
+import androidx.annotation.WorkerThread
 
-/**
- * PC를 찾아 BLE로 연결하고, 받은 소리를 JitterPlayer로 재생한다.
- * 포그라운드 서비스(알림바 표시)라서 화면이 꺼져도 안드로이드가 멈추지 않는다.
- * 권한은 MainActivity에서 받은 뒤에만 시작된다.
- */
+// docs/FEATURES.md: 폰 찾기·연결, 재생
 @SuppressLint("MissingPermission")
 class AudioService : Service() {
 
     companion object {
         const val ACTION_START = "com.naya.hod.START"
         const val ACTION_STOP = "com.naya.hod.STOP"
-        /** 연결할 PC 번호 (16진수 8자리). 없으면 시작하지 않음 (기록에 없는 PC는 찾지 않는다) */
         const val EXTRA_ID = "id"
         private const val CHANNEL_ID = "playback"
         private const val NOTIFICATION_ID = 1
-        // PC는 5초 안에 답이 없으면 실패로 봄 (docs/PROTOCOL.md 5절). 폰은 여유를 두고 기다림
         private const val AUTH_TIMEOUT_MS = 10_000L
-        // 찾기 시작 후 이만큼 광고를 모은 뒤 가장 센 후보에 붙음 (마지막으로 통과한 PC가 보이면 바로)
         private const val COLLECT_MS = 1000L
-        // 확인에 이만큼 연속으로 떨어지면 내 PC가 근처에 없거나 열쇠가 바뀐 것으로 보고 멈춤
         private const val MAX_REJECTIONS = 5
+        private const val RETRY_MS = 3000L
+        private const val RESCAN_MS = 1000L
+        private const val STATS_EVERY_MS = 1000L
+        private const val MAX_SEQ_GAP = 1000
 
         @Volatile var isRunning = false; private set
         @Volatile var status = "정지됨"; private set
-        /** 화면에 상태를 보여주기 위한 콜백 (MainActivity가 등록) */
         @Volatile var onStatus: ((String) -> Unit)? = null
-        /** 재생 중 상세 숫자 (코덱·MTU·버퍼·손실 등). 재생 중이 아니면 null. 개발 모드에서만 화면에 보임 */
         @Volatile var stats: String? = null; private set
         @Volatile var onStats: ((String?) -> Unit)? = null
-        /** 재생 중인 소리 (MainActivity의 비주얼라이저가 읽음) */
         val tap = AudioTap()
     }
 
     private val handler = Handler(Looper.getMainLooper())
-    // PC가 보내는 코덱에 맞춰 바뀐다 (switchCodec). 첫 패킷이 오기 전엔 null
     private val playLock = Any()
     @Volatile private var decoder: Codecs.Decoder? = null
     @Volatile private var player: JitterPlayer? = null
@@ -69,27 +63,20 @@ class AudioService : Service() {
     private var wakeLock: PowerManager.WakeLock? = null
     private var scanning = false
     private var targetId: String? = null
-    // 광고로는 내 PC를 가릴 수 없어서 HearOne PC에 차례로 붙어 열쇠로 확인 (Candidates.kt)
     private val candidates = Candidates()
     private val seenDevices = mutableMapOf<String, BluetoothDevice>()
     private var connectingAddr: String? = null
-    // 이번 연결이 확인을 통과했는지 (끊겼을 때 "연결 안 됨"과 구별)
     private var passed = false
-    // 확인에 떨어져 끊는 중이면 끊김 문구를 덮어쓰지 않음
     private var leavingRejected = false
-    // 연결 확인 (docs/PROTOCOL.md 5·6절). GATT 콜백 스레드에서만 바꿈 (패킷 순서대로 처리하려고)
     @Volatile private var auth: Auth? = null
-    // 확인 통과 뒤에만 있음. 이때부터 잠긴 패킷만 받고, 통과 전에 온 소리는 버림
     @Volatile private var unsealer: Unsealer? = null
     private var unsealFailed = 0
 
-    // 통계
     private var mtu = 23
     private var lastSeq = -1
     private var lost = 0
-    private var unknownCodec = 0 // PC가 이 앱이 모르는 코덱으로 보내면 그 번호
+    private var unknownCodec = 0
     private var bytesThisSecond = 0
-    // 연결(구독 성공)·해제 순간에 알림음
     private var playing = false
         set(value) {
             if (value != field) if (value) Chime.connected() else Chime.disconnected()
@@ -113,14 +100,14 @@ class AudioService : Service() {
         super.onDestroy()
     }
 
+    @MainThread
     private fun start(id: String) {
         if (isRunning) {
-            // 재생 중에 다른 PC의 QR을 찍으면 그 PC로 갈아탐
             if (id != targetId) {
                 targetId = id
                 candidates.reset()
                 stopScan()
-                gatt?.disconnect() // 끊김 처리(onConnectionStateChange)에서 새 번호로 다시 찾음
+                gatt?.disconnect()
                 if (gatt == null) scan()
             }
             return
@@ -136,6 +123,7 @@ class AudioService : Service() {
         scan()
     }
 
+    @MainThread
     private fun stopAll() {
         if (!isRunning) return
         isRunning = false
@@ -159,14 +147,14 @@ class AudioService : Service() {
         stopSelf()
     }
 
-    // ---------- 1. PC 찾기 ----------
-
+    // docs/PROTOCOL.md: 찾기
+    @MainThread
     private fun scan() {
         if (!isRunning || scanning) return
         val scanner = bluetooth?.bluetoothLeScanner
         if (scanner == null || !bluetooth.isEnabled) {
             setStatus("블루투스가 꺼져 있음. 켜면 자동으로 다시 시도")
-            handler.postDelayed({ scan() }, 3000)
+            handler.postDelayed({ scan() }, RETRY_MS)
             return
         }
         lastSeq = -1
@@ -174,7 +162,6 @@ class AudioService : Service() {
         unsealFailed = 0
         if (targetId == null) return
         setStatus("${pcLabel()} 찾는 중...")
-        // 우리 서비스를 광고하는 PC 전부가 후보. 내 PC인지는 연결 뒤 열쇠로 확인 (docs/PROTOCOL.md 1절)
         candidates.newRound()
         seenDevices.clear()
         val filter = ScanFilter.Builder().setServiceUuid(ParcelUuid(Protocol.SERVICE_UUID)).build()
@@ -184,6 +171,7 @@ class AudioService : Service() {
         handler.postDelayed(pickCandidate, COLLECT_MS)
     }
 
+    @MainThread
     private fun stopScan() {
         handler.removeCallbacks(pickCandidate)
         if (!scanning) return
@@ -191,7 +179,6 @@ class AudioService : Service() {
         runCatching { bluetooth?.bluetoothLeScanner?.stopScan(scanCallback) }
     }
 
-    // 모은 후보 중 하나에 붙음. 아직 없으면 조금 더 찾음
     private val pickCandidate: Runnable = Runnable {
         if (!scanning) return@Runnable
         val device = candidates.pick()?.let { seenDevices[it] }
@@ -202,6 +189,7 @@ class AudioService : Service() {
         connectTo(device)
     }
 
+    @MainThread
     private fun connectTo(device: BluetoothDevice) {
         stopScan()
         connectingAddr = device.address
@@ -210,7 +198,7 @@ class AudioService : Service() {
         gatt = device.connectGatt(this, false, gattCallback, BluetoothDevice.TRANSPORT_LE)
     }
 
-    // 확인에 떨어짐 (남의 PC이거나 열쇠가 다름) → 끊고 다음 후보. 메인 스레드에서 호출
+    @MainThread
     private fun rejectCurrent() {
         connectingAddr?.let { candidates.reject(it) }
         resetAuth()
@@ -225,31 +213,31 @@ class AudioService : Service() {
     }
 
     private val scanCallback = object : ScanCallback() {
+        @MainThread
         override fun onScanResult(callbackType: Int, result: ScanResult) {
             if (!scanning) return
             val addr = result.device.address
             seenDevices[addr] = result.device
             candidates.offer(addr, result.rssi)
-            // 마지막으로 통과한 PC면 기다리지 않고 바로
             if (addr == candidates.lastGood) connectTo(result.device)
         }
 
+        @MainThread
         override fun onScanFailed(errorCode: Int) {
             scanning = false
             setStatus("스캔 실패 (코드 $errorCode). 다시 시도")
-            handler.postDelayed({ scan() }, 3000)
+            handler.postDelayed({ scan() }, RETRY_MS)
         }
     }
 
-    // ---------- 2. 연결 → MTU → 서비스 찾기 → 구독 ----------
-
+    // docs/PROTOCOL.md: 연결
     private val gattCallback = object : BluetoothGattCallback() {
+        @WorkerThread
         override fun onConnectionStateChange(g: BluetoothGatt, status: Int, newState: Int) {
             if (newState == BluetoothProfile.STATE_CONNECTED) {
                 setStatus("연결됨, 설정 중...")
                 g.requestConnectionPriority(BluetoothGatt.CONNECTION_PRIORITY_HIGH)
-                // 한 번에 보낼 수 있는 크기를 최대로 요청 (실제 값은 onMtuChanged)
-                g.requestMtu(517)
+                g.requestMtu(Protocol.MTU_REQUEST)
             } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
                 g.close()
                 if (gatt == g) gatt = null
@@ -257,21 +245,22 @@ class AudioService : Service() {
                 playing = false
                 handler.post {
                     if (!isRunning) return@post
-                    // 확인까지 못 가고 끊긴 주소는 이미 바뀌었을 수 있음 (Windows는 광고 주소를 바꿈)
                     val addr = connectingAddr
                     if (addr != null && !passed && !leavingRejected) candidates.unreachable(addr)
                     if (!leavingRejected) setStatus("끊김, 다시 찾는 중...")
                     leavingRejected = false
-                    handler.postDelayed({ scan() }, 1000)
+                    handler.postDelayed({ scan() }, RESCAN_MS)
                 }
             }
         }
 
+        @WorkerThread
         override fun onMtuChanged(g: BluetoothGatt, newMtu: Int, status: Int) {
             mtu = newMtu
             g.discoverServices()
         }
 
+        @WorkerThread
         override fun onServicesDiscovered(g: BluetoothGatt, status: Int) {
             val ch = g.getService(Protocol.SERVICE_UUID)?.getCharacteristic(Protocol.AUDIO_CHAR_UUID)
             val desc = ch?.getDescriptor(Protocol.CCCD_UUID)
@@ -279,7 +268,6 @@ class AudioService : Service() {
                 handler.post { rejectCurrent() }
                 return
             }
-            // PC는 구독을 받자마자 문제를 보내고, 그게 구독 완료(onDescriptorWrite)보다 먼저 올 수 있음 → 구독 전에 준비
             val key = targetId?.let { SavedPcs.find(this@AudioService, it) }?.key?.ifEmpty { null }
             if (key == null) {
                 handler.post { stopWith("이 PC는 QR을 다시 찍어야 해요") }
@@ -298,7 +286,7 @@ class AudioService : Service() {
             }
         }
 
-        // 구독 성공 → PC가 확인 문제를 보내옴 (onControl)
+        @WorkerThread
         override fun onDescriptorWrite(g: BluetoothGatt, d: BluetoothGattDescriptor, status: Int) {
             if (status != BluetoothGatt.GATT_SUCCESS) {
                 setStatus("구독 실패 (코드 $status)")
@@ -310,24 +298,23 @@ class AudioService : Service() {
             }
         }
 
-        // ---------- 3. 소리 받기 ----------
-
-        // Android 13+
+        @WorkerThread
         override fun onCharacteristicChanged(
             g: BluetoothGatt, ch: BluetoothGattCharacteristic, value: ByteArray
         ) = onAudio(value)
 
-        // Android 12 이하
         @Deprecated("Android 12 이하용")
         @Suppress("DEPRECATION")
+        @WorkerThread
         override fun onCharacteristicChanged(g: BluetoothGatt, ch: BluetoothGattCharacteristic) =
             onAudio(ch.value)
     }
 
+    // docs/PROTOCOL.md: 패킷, 잠그기
+    @WorkerThread
     private fun onAudio(data: ByteArray) {
         val raw = Protocol.parse(data) ?: return
         val open = unsealer
-        // 통과 뒤엔 잠긴 패킷만 (docs/PROTOCOL.md 6절). 못 풀면 버림
         val packet = if (open == null) raw else open.open(raw) ?: run { unsealFailed++; return }
         if (packet.codec == Protocol.CONTROL) {
             onControl(packet, sealed = open != null)
@@ -336,19 +323,19 @@ class AudioService : Service() {
         if (open == null) return
         if (lastSeq >= 0) {
             val gap = (packet.seq - lastSeq - 1) and 0xFFFF
-            if (gap in 1..1000) lost += gap
+            if (gap in 1..MAX_SEQ_GAP) lost += gap
         }
         lastSeq = packet.seq
         bytesThisSecond += data.size
         synchronized(playLock) {
             if (!isRunning) return
-            val dec = decoder?.takeIf { it.id == packet.codec } ?: switchCodec(packet.codec) ?: return
+            val dec = decoder?.takeIf { it.id == packet.codec } ?: switchCodecLocked(packet.codec) ?: return
             player?.push(dec.decode(packet.data, Protocol.HEADER_LEN))
         }
     }
 
-    // PC가 보낸 제어 메시지 (docs/PROTOCOL.md 4절). 멈추는 경우는 정지 버튼과 똑같이 (다시 찾지 않음)
-    // 확인 절차(2·3·4)는 통과 전 잠기지 않은 것만, 중지(1)는 통과 뒤 잠긴 것만 받음
+    // docs/PROTOCOL.md: 제어 메시지, 연결 확인
+    @WorkerThread
     private fun onControl(packet: Protocol.Packet, sealed: Boolean) {
         val cmd = packet.data.getOrNull(Protocol.HEADER_LEN)?.toInt() ?: return
         val body = packet.data.copyOfRange(Protocol.HEADER_LEN + 1, packet.data.size)
@@ -361,12 +348,10 @@ class AudioService : Service() {
             Protocol.CONTROL_AUTH_OK -> {
                 val a = auth
                 val key = a?.takeIf { it.checkPc(body) }?.audioKey()
-                // PC 증명이 틀림 = 내 열쇠를 모르는 PC
                 if (key == null) {
                     handler.post { rejectCurrent() }
                     return
                 }
-                // 이 패킷 바로 다음부터 잠겨 옴
                 unsealer = Unsealer(key, packet.seq.toLong())
                 handler.post {
                     handler.removeCallbacks(authTimeout)
@@ -376,12 +361,11 @@ class AudioService : Service() {
                     setStatus("${pcLabel()} 연결됨")
                 }
             }
-            // 내 답이 틀림 = 이 PC는 다른 열쇠를 가짐 (남의 PC이거나 내 PC의 열쇠가 바뀜)
             Protocol.CONTROL_AUTH_FAIL -> handler.post { rejectCurrent() }
         }
     }
 
-    // PC 문제에 답을 오디오 특성에 씀 (응답 있는 쓰기)
+    @WorkerThread
     private fun answer(challenge: ByteArray) {
         val g = gatt ?: return
         val reply = auth?.reply(challenge) ?: return
@@ -398,7 +382,6 @@ class AudioService : Service() {
         }
     }
 
-    // 정해진 시간 안에 확인이 안 끝나면 옛 PC 앱이거나 문제가 있는 PC → 다음 후보
     private val authTimeout = Runnable { rejectCurrent() }
 
     private fun resetAuth() {
@@ -407,15 +390,15 @@ class AudioService : Service() {
         unsealer = null
     }
 
+    @MainThread
     private fun stopWith(message: String) {
         stopAll()
         setStatus(message)
     }
 
-    // PC에서 코덱을 바꾸면 패킷 헤더의 번호가 바뀐다 → 디코더를 바꾸고, 샘플레이트·채널이 다르면 재생기도 새로.
-    // playLock 안에서 호출
-    private fun switchCodec(id: Int): Codecs.Decoder? {
-        // 디코더를 못 여는 경우(기기에 Opus 디코더가 없음 등)도 "모르는 코덱"으로 표시. 원인은 logcat
+    // docs/CODECS.md: 코덱 바꾸는 법
+    @WorkerThread
+    private fun switchCodecLocked(id: Int): Codecs.Decoder? {
         val dec = runCatching { Codecs.decoder(id) }.onFailure { Log.e("HOD", "디코더 $id 열기 실패", it) }.getOrNull()
         if (dec == null) {
             unknownCodec = id
@@ -431,8 +414,7 @@ class AudioService : Service() {
         return dec
     }
 
-    // ---------- 상태 표시 ----------
-
+    // docs/FEATURES.md: 폰 화면
     private val statsTick = object : Runnable {
         override fun run() {
             val dec = decoder
@@ -449,11 +431,10 @@ class AudioService : Service() {
             }
             setStats(detail)
             bytesThisSecond = 0
-            handler.postDelayed(this, 1000)
+            handler.postDelayed(this, STATS_EVERY_MS)
         }
     }
 
-    // 화면에 보일 PC 이름. 기록에 이름이 있으면 이름만 (번호는 감춤)
     private fun pcLabel(): String {
         val id = targetId ?: return "PC"
         return SavedPcs.find(this, id)?.name?.ifBlank { null } ?: "PC $id"
