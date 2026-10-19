@@ -26,6 +26,8 @@ import android.os.Looper
 import android.os.ParcelUuid
 import android.os.PowerManager
 import android.util.Log
+import androidx.annotation.MainThread
+import androidx.annotation.WorkerThread
 
 // docs/FEATURES.md: 폰 찾기·연결, 재생
 @SuppressLint("MissingPermission")
@@ -98,6 +100,7 @@ class AudioService : Service() {
         super.onDestroy()
     }
 
+    @MainThread
     private fun start(id: String) {
         if (isRunning) {
             if (id != targetId) {
@@ -120,6 +123,7 @@ class AudioService : Service() {
         scan()
     }
 
+    @MainThread
     private fun stopAll() {
         if (!isRunning) return
         isRunning = false
@@ -144,6 +148,7 @@ class AudioService : Service() {
     }
 
     // docs/PROTOCOL.md: 찾기
+    @MainThread
     private fun scan() {
         if (!isRunning || scanning) return
         val scanner = bluetooth?.bluetoothLeScanner
@@ -166,6 +171,7 @@ class AudioService : Service() {
         handler.postDelayed(pickCandidate, COLLECT_MS)
     }
 
+    @MainThread
     private fun stopScan() {
         handler.removeCallbacks(pickCandidate)
         if (!scanning) return
@@ -183,6 +189,7 @@ class AudioService : Service() {
         connectTo(device)
     }
 
+    @MainThread
     private fun connectTo(device: BluetoothDevice) {
         stopScan()
         connectingAddr = device.address
@@ -191,6 +198,7 @@ class AudioService : Service() {
         gatt = device.connectGatt(this, false, gattCallback, BluetoothDevice.TRANSPORT_LE)
     }
 
+    @MainThread
     private fun rejectCurrent() {
         connectingAddr?.let { candidates.reject(it) }
         resetAuth()
@@ -205,6 +213,7 @@ class AudioService : Service() {
     }
 
     private val scanCallback = object : ScanCallback() {
+        @MainThread
         override fun onScanResult(callbackType: Int, result: ScanResult) {
             if (!scanning) return
             val addr = result.device.address
@@ -213,6 +222,7 @@ class AudioService : Service() {
             if (addr == candidates.lastGood) connectTo(result.device)
         }
 
+        @MainThread
         override fun onScanFailed(errorCode: Int) {
             scanning = false
             setStatus("스캔 실패 (코드 $errorCode). 다시 시도")
@@ -222,6 +232,7 @@ class AudioService : Service() {
 
     // docs/PROTOCOL.md: 연결
     private val gattCallback = object : BluetoothGattCallback() {
+        @WorkerThread
         override fun onConnectionStateChange(g: BluetoothGatt, status: Int, newState: Int) {
             if (newState == BluetoothProfile.STATE_CONNECTED) {
                 setStatus("연결됨, 설정 중...")
@@ -243,11 +254,13 @@ class AudioService : Service() {
             }
         }
 
+        @WorkerThread
         override fun onMtuChanged(g: BluetoothGatt, newMtu: Int, status: Int) {
             mtu = newMtu
             g.discoverServices()
         }
 
+        @WorkerThread
         override fun onServicesDiscovered(g: BluetoothGatt, status: Int) {
             val ch = g.getService(Protocol.SERVICE_UUID)?.getCharacteristic(Protocol.AUDIO_CHAR_UUID)
             val desc = ch?.getDescriptor(Protocol.CCCD_UUID)
@@ -273,6 +286,7 @@ class AudioService : Service() {
             }
         }
 
+        @WorkerThread
         override fun onDescriptorWrite(g: BluetoothGatt, d: BluetoothGattDescriptor, status: Int) {
             if (status != BluetoothGatt.GATT_SUCCESS) {
                 setStatus("구독 실패 (코드 $status)")
@@ -284,17 +298,20 @@ class AudioService : Service() {
             }
         }
 
+        @WorkerThread
         override fun onCharacteristicChanged(
             g: BluetoothGatt, ch: BluetoothGattCharacteristic, value: ByteArray
         ) = onAudio(value)
 
         @Deprecated("Android 12 이하용")
         @Suppress("DEPRECATION")
+        @WorkerThread
         override fun onCharacteristicChanged(g: BluetoothGatt, ch: BluetoothGattCharacteristic) =
             onAudio(ch.value)
     }
 
     // docs/PROTOCOL.md: 패킷, 잠그기
+    @WorkerThread
     private fun onAudio(data: ByteArray) {
         val raw = Protocol.parse(data) ?: return
         val open = unsealer
@@ -318,6 +335,7 @@ class AudioService : Service() {
     }
 
     // docs/PROTOCOL.md: 제어 메시지, 연결 확인
+    @WorkerThread
     private fun onControl(packet: Protocol.Packet, sealed: Boolean) {
         val cmd = packet.data.getOrNull(Protocol.HEADER_LEN)?.toInt() ?: return
         val body = packet.data.copyOfRange(Protocol.HEADER_LEN + 1, packet.data.size)
@@ -347,6 +365,7 @@ class AudioService : Service() {
         }
     }
 
+    @WorkerThread
     private fun answer(challenge: ByteArray) {
         val g = gatt ?: return
         val reply = auth?.reply(challenge) ?: return
@@ -371,12 +390,14 @@ class AudioService : Service() {
         unsealer = null
     }
 
+    @MainThread
     private fun stopWith(message: String) {
         stopAll()
         setStatus(message)
     }
 
     // docs/CODECS.md: 코덱 바꾸는 법
+    @WorkerThread
     private fun switchCodecLocked(id: Int): Codecs.Decoder? {
         val dec = runCatching { Codecs.decoder(id) }.onFailure { Log.e("HOD", "디코더 $id 열기 실패", it) }.getOrNull()
         if (dec == null) {
