@@ -5,7 +5,7 @@
   "identifier": "com.naya.hod",
   "build": {
     "beforeDevCommand": "bun --bun run dev",
-    "devUrl": "http://localhost:1420",
+    "devUrl": "http://localhost:28461",
     "beforeBuildCommand": "bun --bun run build",
     "frontendDist": "../dist"
   },
