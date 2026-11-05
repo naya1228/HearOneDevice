@@ -61,9 +61,9 @@ The QR code carries a key that is handed over once. On every connection the PC a
 PC app (Tauri 2 + React):
 
 ```bash
-npm install
-npm run tauri dev      # run
-npm run tauri build    # build installer
+bun install
+bun tauri dev      # run
+bun tauri build    # build installer
 cd src-tauri && cargo test
 cd src-tauri && cargo run --example send   # send only, no UI
 ```
@@ -147,9 +147,9 @@ QR에 실린 열쇠를 한 번 건네고, 연결할 때마다 PC와 폰이 그 �
 PC 앱 (Tauri 2 + React):
 
 ```bash
-npm install
-npm run tauri dev      # 실행
-npm run tauri build    # 설치 파일 만들기
+bun install
+bun tauri dev      # 실행
+bun tauri build    # 설치 파일 만들기
 cd src-tauri && cargo test
 cd src-tauri && cargo run --example send   # 화면 없이 송신만
 ```

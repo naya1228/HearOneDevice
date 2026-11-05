@@ -74,10 +74,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: 'npm'
+      - uses: oven-sh/setup-bun@v2
 
       - uses: dtolnay/rust-toolchain@stable
 
@@ -85,7 +82,7 @@ jobs:
         with:
           workspaces: './src-tauri -> target'
 
-      - run: npm ci
+      - run: bun install --frozen-lockfile
 
       - name: Test
         run: cargo test
@@ -98,6 +95,7 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
+          tauriScript: bun tauri
           tagName: ${{ github.ref_name }}
           releaseName: 'HearOneDevice ${{ github.ref_name }}'
           releaseDraft: false
@@ -124,10 +122,7 @@ jobs:
             libdbus-1-dev \
             libopus-dev
 
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: 'npm'
+      - uses: oven-sh/setup-bun@v2
 
       - uses: dtolnay/rust-toolchain@stable
 
@@ -135,7 +130,7 @@ jobs:
         with:
           workspaces: './src-tauri -> target'
 
-      - run: npm ci
+      - run: bun install --frozen-lockfile
 
       - uses: tauri-apps/tauri-action@v0
         env:
@@ -144,6 +139,7 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
+          tauriScript: bun tauri
           tagName: ${{ github.ref_name }}
           releaseName: 'HearOneDevice ${{ github.ref_name }}'
           releaseDraft: false
