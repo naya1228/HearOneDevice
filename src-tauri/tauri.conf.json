@@ -4,9 +4,9 @@
   "version": "0.4.2",
   "identifier": "com.naya.hod",
   "build": {
-    "beforeDevCommand": "npm run dev",
+    "beforeDevCommand": "bun --bun run dev",
     "devUrl": "http://localhost:1420",
-    "beforeBuildCommand": "npm run build",
+    "beforeBuildCommand": "bun --bun run build",
     "frontendDist": "../dist"
   },
   "app": {
