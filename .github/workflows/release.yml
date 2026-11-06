@@ -16,6 +16,20 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # 태그가 버전 커밋보다 앞 커밋에 붙으면, 옛 코드가 새 이름으로 나가 폰이 계속 업데이트를 띄움 (v0.4.3)
+      - name: Check tag matches app versions
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          fail=0
+          check() {
+            if [ "$2" != "$tag" ]; then echo "::error file=$1::$1 버전 $2 ≠ 태그 $tag"; fail=1; fi
+          }
+          check package.json "$(sed -n 's/^  "version": "\(.*\)",$/\1/p' package.json)"
+          check src-tauri/tauri.conf.json "$(sed -n 's/^  "version": "\(.*\)",$/\1/p' src-tauri/tauri.conf.json)"
+          check src-tauri/Cargo.toml "$(sed -n '0,/^version = "\(.*\)"$/s//\1/p' src-tauri/Cargo.toml)"
+          check android/app/build.gradle.kts "$(sed -n 's/^ *versionName = "\(.*\)"$/\1/p' android/app/build.gradle.kts)"
+          exit $fail
+
       # gradle-daemon-jvm.properties가 JetBrains JDK 25를 요구함
       - uses: actions/setup-java@v4
         with:
